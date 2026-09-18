@@ -1,0 +1,6 @@
+{
+  "name": "토크어라운드",
+  "description": "해외 경험을 앞둔 대학생과 사회초년생을 위한 실전 뉴욕 영어 대화 시뮬레이션 게임",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
