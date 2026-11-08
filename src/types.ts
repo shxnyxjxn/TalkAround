@@ -112,3 +112,82 @@ export interface UserSettings {
   showKoreanHints: boolean;
   targetCefr: CefrLevel;
 }
+
+// ==========================================
+// 5th Grade Elementary English Word Game Types
+// ==========================================
+
+export type WordCategory = 
+  | 'school'       // 학교와 교실
+  | 'food'         // 음식과 요리
+  | 'animals'      // 동물과 자연
+  | 'hobbies'      // 취미와 스포츠
+  | 'jobs'         // 직업과 사람들
+  | 'daily';       // 일상 행동과 감정
+
+export interface Grade5Word {
+  id: string;
+  word: string;
+  meaning: string;
+  category: WordCategory;
+  categoryNameKo: string;
+  categoryEmoji: string;
+  pronunciation?: string;
+  exampleEn: string;
+  exampleKo: string;
+  options: string[]; // 4 Korean meanings for choice quiz
+}
+
+export type WordGameMode = 'meaning' | 'spelling' | 'listening' | 'speed';
+
+export interface StudentProfile {
+  name: string;
+  avatar: string;
+  play_count: number;
+  correct_count: number;
+  wrong_count: number;
+  lastPlayed?: string;
+}
+
+export interface SentenceTapItem {
+  sentence: string;
+  sentenceKo?: string;
+  category?: string;
+  tapCount: number;
+  lastTappedAt: string;
+}
+
+export interface SentenceTapStats {
+  items: Record<string, SentenceTapItem>;
+  totalTaps: number;
+  uniqueSentencesCount: number;
+  averageTaps: number; // e.g. 2.45
+  topSentence?: SentenceTapItem;
+}
+
+export interface GoogleSheetRecord {
+  id: string;
+  timestamp: string;      // "YYYY-MM-DD HH:mm:ss"
+  name: string;           // Student Name
+  play_count: number;     // Total plays
+  correct_count: number;  // Correct count
+  wrong_count: number;    // Wrong count
+  average_taps?: number;  // 각 문장별 탭 평균
+  sentence_summary?: string; // 각 문장별 탭 빈도 요약
+  total_sentence_taps?: number;
+  status: 'synced' | 'pending' | 'failed';
+  errorMessage?: string;
+  mode?: string;
+}
+
+export interface GameSessionSummary {
+  mode: WordGameMode;
+  totalQuestions: number;
+  correctAnswers: number;
+  wrongAnswers: number;
+  score: number;
+  timeSpentSeconds: number;
+  wrongWords: Grade5Word[];
+  timestamp: string;
+  sentenceTapStats?: SentenceTapStats;
+}

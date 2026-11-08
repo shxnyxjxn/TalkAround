@@ -10,7 +10,8 @@ import { StartScreen } from './components/StartScreen';
 import { GameScreen } from './components/GameScreen';
 import { ResultScreen } from './components/ResultScreen';
 import { SettingsModal } from './components/SettingsModal';
-import { Smartphone, Monitor } from 'lucide-react';
+import { Grade5WordGameHub } from './components/Grade5WordGameHub';
+import { Smartphone, Monitor, BookOpen, MessageSquareText } from 'lucide-react';
 
 const DEFAULT_SETTINGS: UserSettings = {
   playbackSpeed: 1.0,
@@ -20,6 +21,10 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 export default function App() {
+  // App Mode: Grade 5 Word Game (Default as requested) vs Conversation Simulation
+  const [appMode, setAppMode] = useState<'grade5_word_game' | 'conversation_sim'>('grade5_word_game');
+
+  // Conversation sim states
   const [currentScreen, setCurrentScreen] = useState<'start' | 'game' | 'result'>('start');
   const [activeEpisode, setActiveEpisode] = useState<Episode>(EPISODES[0]);
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
@@ -43,7 +48,7 @@ export default function App() {
     }
   }, [settings]);
 
-  // Screen handlers
+  // Screen handlers for conversation sim
   const handleStartGame = (episode: Episode) => {
     setActiveEpisode(episode);
     setCurrentScreen('game');
@@ -67,6 +72,28 @@ export default function App() {
     setCurrentScreen('start');
   };
 
+  // Render Grade 5 Elementary English Word Game by default
+  if (appMode === 'grade5_word_game') {
+    return (
+      <div className="relative min-h-screen bg-stone-950">
+        <Grade5WordGameHub />
+
+        {/* Floating Quick Switcher to Conversation Sim */}
+        <div className="fixed bottom-3 right-3 z-40">
+          <button
+            onClick={() => setAppMode('conversation_sim')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-900/90 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-stone-200 text-xs backdrop-blur-md transition-all shadow-lg cursor-pointer"
+            title="뉴욕 회화 시뮬레이션 모드로 전환"
+          >
+            <MessageSquareText className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">실전 회화 시뮬레이션 전환</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Conversation Simulation Mode
   return (
     <main className="min-h-screen w-full bg-stone-950 text-stone-100 flex flex-col items-center justify-center relative font-sans selection:bg-amber-500 selection:text-stone-900">
       {/* Background Ambience / Subtle NYC Nightglow */}
@@ -75,29 +102,39 @@ export default function App() {
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Desktop view frame switcher toggle */}
-      <div className="hidden md:flex fixed top-3 right-4 z-40 items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900/90 border border-stone-800 text-xs text-stone-400 backdrop-blur-md shadow-sm">
-        <span>뷰 모드:</span>
+      {/* Mode Switcher & Desktop view frame switcher toggle */}
+      <div className="fixed top-3 right-4 z-40 flex items-center gap-2">
         <button
-          onClick={() => setIsPhoneFrame(true)}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${
-            isPhoneFrame ? 'bg-amber-500 text-stone-950 font-bold' : 'hover:text-white'
-          }`}
-          title="모바일 프레임으로 보기"
+          onClick={() => setAppMode('grade5_word_game')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs shadow-md transition-all cursor-pointer"
         >
-          <Smartphone className="w-3.5 h-3.5" />
-          모바일
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>초등 5학년 영단어 퀴즈</span>
         </button>
-        <button
-          onClick={() => setIsPhoneFrame(false)}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${
-            !isPhoneFrame ? 'bg-amber-500 text-stone-950 font-bold' : 'hover:text-white'
-          }`}
-          title="전체 화면으로 보기"
-        >
-          <Monitor className="w-3.5 h-3.5" />
-          와이드
-        </button>
+
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900/90 border border-stone-800 text-xs text-stone-400 backdrop-blur-md shadow-sm">
+          <span>뷰:</span>
+          <button
+            onClick={() => setIsPhoneFrame(true)}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${
+              isPhoneFrame ? 'bg-amber-500 text-stone-950 font-bold' : 'hover:text-white'
+            }`}
+            title="모바일 프레임으로 보기"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            모바일
+          </button>
+          <button
+            onClick={() => setIsPhoneFrame(false)}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${
+              !isPhoneFrame ? 'bg-amber-500 text-stone-950 font-bold' : 'hover:text-white'
+            }`}
+            title="전체 화면으로 보기"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            와이드
+          </button>
+        </div>
       </div>
 
       {/* Main Container: Mobile Frame on Desktop or Responsive Fluid Container */}

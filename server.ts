@@ -5,6 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const app = express();
 const PORT = 3000;
@@ -23,9 +24,14 @@ function getGemini(): GoogleGenAI | null {
   return geminiClient;
 }
 
-// Health check endpoint
+// Health check endpoint & Public Config
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', hasGeminiKey: !!process.env.GEMINI_API_KEY });
+});
+
+app.get('/api/config', (req, res) => {
+  const googleScriptUrl = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || process.env.VITE_GOOGLE_SCRIPT_URL || '';
+  res.json({ googleScriptUrl });
 });
 
 // Endpoint to evaluate user's freely spoken or written English in scenario context
@@ -120,6 +126,75 @@ Do not include markdown fences like \`\`\`json or any extra commentary outside J
     return res.status(500).json({
       error: err?.message || 'Gemini evaluation failed',
       fallback: true,
+    });
+  }
+});
+
+// Endpoint to proxy Google Apps Script Web App sync requests (avoids browser CORS issues)
+app.post('/api/sync-sheet', async (req, res) => {
+  try {
+    const targetUrl = 
+      req.body.webAppUrl || 
+      process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || 
+      process.env.VITE_GOOGLE_SCRIPT_URL || 
+      'https://script.google.com/macros/s/AKfycbxIrQc4-yR5-BA11Xy1jIL-175KuJO8Wj-hfqjP46SEBUCgsIVuBR-SiLuVxA07U-AxcQ/exec';
+
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+      return res.status(400).json({ success: false, message: 'Valid Google Apps Script Web App URL is required.' });
+    }
+
+    const payload = req.body.payload || {};
+    const { 
+      timestamp, 
+      name, 
+      play_count, 
+      correct_count, 
+      wrong_count, 
+      average_taps, 
+      sentence_summary, 
+      total_sentence_taps, 
+      sentence_tap_details 
+    } = payload;
+    
+    // Call Google Apps Script Web App
+    const fetchResponse = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        timestamp: timestamp || new Date().toISOString(),
+        name: name || 'Student',
+        play_count: play_count ?? 1,
+        correct_count: correct_count ?? 0,
+        wrong_count: wrong_count ?? 0,
+        average_taps: average_taps !== undefined ? average_taps : 0,
+        sentence_summary: sentence_summary || '문장 탭 없음',
+        sentence_tap_frequency: sentence_summary || '문장 탭 없음',
+        total_sentence_taps: total_sentence_taps || 0,
+        sentence_tap_details: sentence_tap_details || [],
+      }),
+      redirect: 'follow',
+    });
+
+    const text = await fetchResponse.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
+
+    return res.json({
+      success: true,
+      status: fetchResponse.status,
+      data,
+    });
+  } catch (error: any) {
+    console.error('Proxy Google Sheet sync error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to sync with Google Sheet',
     });
   }
 });
