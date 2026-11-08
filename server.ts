@@ -137,7 +137,7 @@ app.post('/api/sync-sheet', async (req, res) => {
       req.body.webAppUrl || 
       process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || 
       process.env.VITE_GOOGLE_SCRIPT_URL || 
-      'https://script.google.com/macros/s/AKfycbxIrQc4-yR5-BA11Xy1jIL-175KuJO8Wj-hfqjP46SEBUCgsIVuBR-SiLuVxA07U-AxcQ/exec';
+      'https://script.google.com/macros/s/AKfycbyYMVPq49LQnGqU2b6pWfiytR5Rt2gg1NUD6IkcXWrvDH-ScdE6p5DlMQHF2eKT_o4wbw/exec';
 
     if (!targetUrl || !targetUrl.startsWith('http')) {
       return res.status(400).json({ success: false, message: 'Valid Google Apps Script Web App URL is required.' });
@@ -146,16 +146,16 @@ app.post('/api/sync-sheet', async (req, res) => {
     const payload = req.body.payload || {};
     const { 
       timestamp, 
-      nickname,
       name,
+      nickname,
       scenario_name,
       play_count, 
       appropriateness_score,
     } = payload;
     
-    // Call Google Apps Script Web App with the 5 columns (A~E):
-    // timestamp, nickname, scenario_name, play_count, appropriateness_score
-    const cleanNickname = nickname || name || '익명';
+    // Call Google Apps Script Web App with the 5 exact keys (A~E):
+    // timestamp, name, scenario_name, play_count, appropriateness_score
+    const studentName = name || nickname || '익명';
     const cleanScenario = scenario_name || 'NYC 실전 회화 시뮬레이션';
     const cleanScore = appropriateness_score !== undefined ? appropriateness_score : '100%';
 
@@ -166,10 +166,11 @@ app.post('/api/sync-sheet', async (req, res) => {
       },
       body: JSON.stringify({
         timestamp: timestamp || new Date().toISOString(),
-        nickname: cleanNickname,
+        name: studentName,
         scenario_name: cleanScenario,
         play_count: Number(play_count) || 1,
         appropriateness_score: cleanScore,
+        nickname: studentName, // alias for backwards compatibility
       }),
       redirect: 'follow',
     });

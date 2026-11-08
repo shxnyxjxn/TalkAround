@@ -135,11 +135,12 @@ export type StudentProfile = LearnerProfile;
 
 export interface GoogleSheetRecord {
   id: string;
-  timestamp: string;                 // "YYYY-MM-DD HH:mm:ss" (완료 일시)
-  nickname: string;                  // 학습자 닉네임 (미입력 시 '익명')
-  scenario_name: string;             // 선택하여 플레이한 시나리오 제목 및 카테고리
-  play_count: number;                // 누적 플레이 횟수
-  appropriateness_score: number | string; // 해당 시나리오에서 획득한 대화 적합도 퍼센트/점수 (예: "92%" 또는 92)
+  timestamp: string;                      // 완료 일시
+  name: string;                           // 학습자 이름/닉네임 (미입력 시 '익명')
+  nickname?: string;                      // 별칭
+  scenario_name: string;                  // 선택하여 플레이한 시나리오 제목 및 카테고리
+  play_count: number;                     // 누적 플레이 횟수
+  appropriateness_score: number | string; // 대화 적합도 퍼센트/점수 (예: "92%")
   status: 'synced' | 'pending' | 'failed';
   errorMessage?: string;
 }

@@ -86,7 +86,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-stone-400">
-                5개 열 구성: <code className="text-amber-300 font-mono">timestamp, nickname, scenario_name, play_count, appropriateness_score</code>
+                5개 열 구성: <code className="text-amber-300 font-mono">timestamp, name, scenario_name, play_count, appropriateness_score</code>
               </p>
             </div>
           </div>
@@ -217,7 +217,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                     <thead>
                       <tr className="bg-stone-800/60 text-stone-300">
                         <th className="p-2 border border-stone-700">A: timestamp</th>
-                        <th className="p-2 border border-stone-700">B: nickname</th>
+                        <th className="p-2 border border-stone-700">B: name</th>
                         <th className="p-2 border border-stone-700">C: scenario_name</th>
                         <th className="p-2 border border-stone-700 text-center">D: play_count</th>
                         <th className="p-2 border border-stone-700 text-center text-amber-400">E: appropriateness_score</th>
@@ -334,7 +334,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                     <thead className="sticky top-0 bg-stone-950 text-stone-300 border-b border-stone-800">
                       <tr>
                         <th className="p-2 font-semibold">일시</th>
-                        <th className="p-2 font-semibold">닉네임</th>
+                        <th className="p-2 font-semibold">이름 (name)</th>
                         <th className="p-2 font-semibold">시나리오</th>
                         <th className="p-2 font-semibold text-center">플레이수</th>
                         <th className="p-2 font-semibold text-center text-amber-400">적합도 점수</th>
@@ -345,7 +345,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                       {records.map((r, i) => (
                         <tr key={i} className="hover:bg-stone-800/30 transition-colors">
                           <td className="p-2 text-stone-400">{r.timestamp}</td>
-                          <td className="p-2 font-bold text-stone-100">{r.nickname}</td>
+                          <td className="p-2 font-bold text-stone-100">{r.name || r.nickname}</td>
                           <td className="p-2 text-stone-300 max-w-[120px] truncate">{r.scenario_name}</td>
                           <td className="p-2 text-center text-stone-200">{r.play_count}</td>
                           <td className="p-2 text-center font-bold text-amber-400">{r.appropriateness_score}</td>

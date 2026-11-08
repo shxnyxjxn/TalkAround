@@ -141,9 +141,11 @@ export default function App() {
     }
 
     const timestamp = formatCurrentTimestamp();
+    const studentName = updatedProfile.nickname || updatedProfile.name || '익명';
     const payload = {
       timestamp,
-      nickname: updatedProfile.nickname,
+      name: studentName,
+      nickname: studentName,
       scenario_name: scenarioName,
       play_count: nextPlayCount,
       appropriateness_score: appropriatenessScore,
@@ -206,9 +208,11 @@ export default function App() {
     const scenarioName = `[${categoryTag}] ${activeEpisode.titleKo} (${activeEpisode.npc.name})`;
     const appropriatenessScore = `${sessionResult.finalAffinity}%`;
 
+    const studentName = learnerProfile.nickname || learnerProfile.name || '익명';
     const payload = {
       timestamp,
-      nickname: learnerProfile.nickname || learnerProfile.name || '익명',
+      name: studentName,
+      nickname: studentName,
       scenario_name: scenarioName,
       play_count: learnerProfile.play_count || 1,
       appropriateness_score: appropriatenessScore,
@@ -283,8 +287,8 @@ export default function App() {
       <div
         className={`w-full relative z-10 transition-all duration-300 ${
           isPhoneFrame
-            ? 'max-w-md h-[100dvh] sm:h-[880px] sm:max-h-[92vh] sm:my-auto sm:rounded-[36px] sm:border-[8px] sm:border-stone-800/90 sm:shadow-2xl sm:shadow-black/80 bg-stone-900/95 overflow-hidden flex flex-col'
-            : 'max-w-xl min-h-screen py-6 px-4 bg-stone-900/95 flex flex-col justify-center'
+            ? 'max-w-md sm:max-w-lg h-[100dvh] sm:h-[900px] sm:max-h-[94vh] sm:my-auto sm:rounded-[40px] sm:border-[8px] sm:border-stone-800/90 sm:shadow-2xl sm:shadow-black/80 bg-stone-900/95 overflow-hidden flex flex-col'
+            : 'max-w-2xl min-h-screen py-6 px-4 bg-stone-900/95 flex flex-col justify-center'
         }`}
       >
         {/* Top Phone Speaker notch on desktop frame */}
