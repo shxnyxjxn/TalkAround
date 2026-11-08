@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Heart, ArrowRight, Sparkles, AlertCircle, CheckCircle2, RotateCcw, XCircle, Sliders, ChevronDown, ChevronUp, Mic, MessageSquare } from 'lucide-react';
 import { Episode, Turn, Choice, TurnRecord, UserSettings, SessionResult, CefrLevel, SpeechEvaluation } from '../types';
 import { NpcAvatar } from './NpcAvatar';
@@ -7,6 +7,7 @@ import { speechService } from '../utils/speech';
 import { SpeechInputPanel } from './SpeechInputPanel';
 import { SpeechFeedbackModal } from './SpeechFeedbackModal';
 import { evaluateUserSpeech } from '../utils/speechEvaluator';
+import { shuffleOptionsWithRandomCorrectIndex } from '../utils/shuffle';
 
 interface GameScreenProps {
   episode: Episode;
@@ -38,9 +39,24 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [speechEvaluation, setSpeechEvaluation] = useState<SpeechEvaluation | null>(null);
   const [userSpokenText, setUserSpokenText] = useState('');
   const [showSpeechFeedbackModal, setShowSpeechFeedbackModal] = useState(false);
+  const [shuffledChoices, setShuffledChoices] = useState<Choice[]>([]);
+  const lastBestIndexRef = useRef<number>(-1);
 
   const currentTurn: Turn = episode.turns[currentTurnIndex];
   const isLastTurn = currentTurnIndex === episode.turns.length - 1;
+
+  // Shuffle choices so the best answer is not fixed to choice #1 and doesn't repeat same position
+  useEffect(() => {
+    if (!currentTurn) return;
+    const bestChoice = currentTurn.choices.find(c => c.isBest) || currentTurn.choices[0];
+    const shuffled = shuffleOptionsWithRandomCorrectIndex(
+      currentTurn.choices,
+      bestChoice,
+      lastBestIndexRef.current
+    );
+    lastBestIndexRef.current = shuffled.findIndex(c => c.isBest);
+    setShuffledChoices(shuffled);
+  }, [currentTurnIndex, currentTurn]);
 
   // Auto-play NPC audio when a new turn loads (if user enabled it)
   useEffect(() => {
@@ -419,7 +435,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             />
           ) : (
             <div className="space-y-2">
-              {currentTurn.choices.map((choice, idx) => {
+              {(shuffledChoices.length > 0 ? shuffledChoices : currentTurn.choices).map((choice, idx) => {
                 const isSelected = selectedChoice?.id === choice.id;
 
                 return (

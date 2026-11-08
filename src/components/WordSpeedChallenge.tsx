@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Timer, Zap, Sparkles, CheckCircle2, XCircle, Volume2 } from 'lucide-react';
 import { Grade5Word } from '../types';
 import { soundEffects } from '../utils/audioEffects';
 import { speechService } from '../utils/speech';
+import { shuffleOptionsWithRandomCorrectIndex } from '../utils/shuffle';
 import confetti from 'canvas-confetti';
 
 interface WordSpeedChallengeProps {
@@ -18,8 +19,22 @@ export const WordSpeedChallenge: React.FC<WordSpeedChallengeProps> = ({ words, o
   const [wrongWords, setWrongWords] = useState<Grade5Word[]>([]);
   const [streak, setStreak] = useState(0);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [shuffledOptions, setShuffledOptions] = useState<string[]>([]);
+  const lastCorrectIndexRef = useRef<number>(-1);
 
   const currentWord = words[currentIndex % words.length];
+
+  // Shuffle options for the active word so answer isn't fixed to #1 and doesn't repeat same position
+  useEffect(() => {
+    if (!currentWord) return;
+    const shuffled = shuffleOptionsWithRandomCorrectIndex(
+      currentWord.options,
+      currentWord.meaning,
+      lastCorrectIndexRef.current
+    );
+    lastCorrectIndexRef.current = shuffled.indexOf(currentWord.meaning);
+    setShuffledOptions(shuffled);
+  }, [currentIndex, currentWord]);
 
   // 60-second countdown
   useEffect(() => {
@@ -143,9 +158,9 @@ export const WordSpeedChallenge: React.FC<WordSpeedChallengeProps> = ({ words, o
         )}
       </div>
 
-      {/* 4 Choices */}
+      {/* 4 Choices (Shuffled so correct answer position varies) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {currentWord.options.map((option, idx) => (
+        {(shuffledOptions.length > 0 ? shuffledOptions : currentWord.options).map((option, idx) => (
           <button
             key={idx}
             onClick={() => handleSelectOption(option)}

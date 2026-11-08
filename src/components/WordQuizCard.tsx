@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Sparkles, CheckCircle2, XCircle, ArrowRight, Lightbulb } from 'lucide-react';
 import { Grade5Word } from '../types';
 import { soundEffects } from '../utils/audioEffects';
 import { speechService } from '../utils/speech';
 import { sentenceTracker } from '../utils/sentenceTapTracker';
+import { shuffleOptionsWithRandomCorrectIndex } from '../utils/shuffle';
 import confetti from 'canvas-confetti';
 
 interface WordQuizCardProps {
@@ -26,12 +27,23 @@ export const WordQuizCard: React.FC<WordQuizCardProps> = ({
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [shuffledOptions, setShuffledOptions] = useState<string[]>([]);
+  const lastCorrectIndexRef = useRef<number>(-1);
 
-  // Play word pronunciation on question load
+  // Shuffle options and play word pronunciation on question load
   useEffect(() => {
     setSelectedOption(null);
     setHasAnswered(false);
     setShowHint(false);
+
+    // Shuffle options so correct answer is NOT always #1 and doesn't repeat the same number
+    const shuffled = shuffleOptionsWithRandomCorrectIndex(
+      word.options,
+      word.meaning,
+      lastCorrectIndexRef.current
+    );
+    lastCorrectIndexRef.current = shuffled.indexOf(word.meaning);
+    setShuffledOptions(shuffled);
 
     const timer = setTimeout(() => {
       speechService.speak(word.word, 0.95);
@@ -180,9 +192,9 @@ export const WordQuizCard: React.FC<WordQuizCardProps> = ({
         </div>
       </div>
 
-      {/* 4 Choices Grid */}
+      {/* 4 Choices Grid (Randomized order so correct answer is not fixed to #1) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-        {word.options.map((option, idx) => {
+        {(shuffledOptions.length > 0 ? shuffledOptions : word.options).map((option, idx) => {
           const isSelected = selectedOption === option;
           const isCorrect = option === word.meaning;
 

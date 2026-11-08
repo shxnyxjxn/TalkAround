@@ -38,6 +38,7 @@ import { StudentProfileModal } from './StudentProfileModal';
 import { GoogleSheetSyncModal } from './GoogleSheetSyncModal';
 import { soundEffects } from '../utils/audioEffects';
 import { getSavedWebAppUrl, getSavedRecords } from '../utils/googleSheetSync';
+import { shuffleOptionsWithRandomCorrectIndex } from '../utils/shuffle';
 
 const STORAGE_KEY_PROFILE = 'grade5_student_profile_v1';
 
@@ -127,7 +128,18 @@ export const Grade5WordGameHub: React.FC = () => {
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, mode === 'speed' ? 30 : 10);
 
-    setSessionWords(selected);
+    // Pre-shuffle options with varying correct answer index across questions
+    let prevIndex = -1;
+    const selectedWithShuffledOptions = selected.map(w => {
+      const shuffledOptions = shuffleOptionsWithRandomCorrectIndex(w.options, w.meaning, prevIndex);
+      prevIndex = shuffledOptions.indexOf(w.meaning);
+      return {
+        ...w,
+        options: shuffledOptions,
+      };
+    });
+
+    setSessionWords(selectedWithShuffledOptions);
     setCurrentIndex(0);
     setSessionCorrectCount(0);
     setSessionWrongCount(0);
