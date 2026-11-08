@@ -150,13 +150,10 @@ app.post('/api/sync-sheet', async (req, res) => {
       play_count, 
       correct_count, 
       wrong_count, 
-      average_taps, 
-      sentence_summary, 
-      total_sentence_taps, 
-      sentence_tap_details 
     } = payload;
     
-    // Call Google Apps Script Web App
+    // Call Google Apps Script Web App with the required 5 keys:
+    // timestamp, name, play_count, correct_count, wrong_count
     const fetchResponse = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -164,15 +161,10 @@ app.post('/api/sync-sheet', async (req, res) => {
       },
       body: JSON.stringify({
         timestamp: timestamp || new Date().toISOString(),
-        name: name || 'Student',
-        play_count: play_count ?? 1,
-        correct_count: correct_count ?? 0,
-        wrong_count: wrong_count ?? 0,
-        average_taps: average_taps !== undefined ? average_taps : 0,
-        sentence_summary: sentence_summary || '문장 탭 없음',
-        sentence_tap_frequency: sentence_summary || '문장 탭 없음',
-        total_sentence_taps: total_sentence_taps || 0,
-        sentence_tap_details: sentence_tap_details || [],
+        name: name || '익명 학습자',
+        play_count: Number(play_count) || 1,
+        correct_count: Number(correct_count) || 0,
+        wrong_count: Number(wrong_count) || 0,
       }),
       redirect: 'follow',
     });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, RotateCcw, ArrowRight, CheckCircle2, AlertCircle, Heart, Sparkles, Volume2, BookmarkCheck, ChevronRight } from 'lucide-react';
+import { Award, RotateCcw, ArrowRight, CheckCircle2, AlertCircle, Heart, Sparkles, Volume2, BookmarkCheck, ChevronRight, Sheet, FileSpreadsheet, RefreshCw } from 'lucide-react';
 import { SessionResult, Episode } from '../types';
 import { EPISODES } from '../data/episodes';
 import { AudioButton } from './AudioButton';
@@ -9,6 +9,8 @@ interface ResultScreenProps {
   onRestart: () => void;
   onNextEpisode: (nextEpisode: Episode) => void;
   onBackToHome: () => void;
+  onOpenSheetModal?: () => void;
+  onRetrySheetSync?: () => void;
 }
 
 export const ResultScreen: React.FC<ResultScreenProps> = ({
@@ -16,8 +18,11 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   onRestart,
   onNextEpisode,
   onBackToHome,
+  onOpenSheetModal,
+  onRetrySheetSync,
 }) => {
   const [activeTab, setActiveTab] = useState<'review' | 'analysis'>('review');
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Find next episode
   const currentIndex = EPISODES.findIndex(e => e.id === result.episodeId);
@@ -94,6 +99,60 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
               <div className="text-lg font-black text-emerald-400 font-mono">
                 {result.bestChoicesCount}/{result.totalTurns}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Google Sheet Automatic Sync Confirmation Card (Requirement 3 & 4) */}
+        <div className={`p-3 rounded-2xl border transition-all text-xs ${
+          result.sheetSyncStatus === 'synced'
+            ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+            : result.sheetSyncStatus === 'failed'
+            ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+            : 'bg-stone-900/90 border-stone-800 text-stone-300'
+        }`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sheet className={`w-4 h-4 shrink-0 ${
+                result.sheetSyncStatus === 'synced' ? 'text-emerald-400' : 'text-amber-400'
+              }`} />
+              <div className="truncate">
+                <span className="font-bold text-[11px] sm:text-xs">
+                  {result.sheetSyncStatus === 'synced'
+                    ? '구글 시트 학습 기록 자동 저장 완료! ✅'
+                    : result.sheetSyncStatus === 'failed'
+                    ? '구글 시트 자동 저장 실패'
+                    : '구글 시트 연동 대기 중'}
+                </span>
+                <p className="text-[10px] text-stone-400 truncate">
+                  {result.sheetSyncMessage || '열 형식: timestamp, name, play_count, correct_count, wrong_count'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {result.sheetSyncStatus === 'failed' && onRetrySheetSync && (
+                <button
+                  onClick={async () => {
+                    setIsRetrying(true);
+                    await onRetrySheetSync();
+                    setIsRetrying(false);
+                  }}
+                  disabled={isRetrying}
+                  className="px-2 py-1 rounded-lg bg-rose-800 hover:bg-rose-700 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RefreshCw className={`w-2.5 h-2.5 ${isRetrying ? 'animate-spin' : ''}`} />
+                  재전송
+                </button>
+              )}
+              {onOpenSheetModal && (
+                <button
+                  onClick={onOpenSheetModal}
+                  className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-[10px] font-medium border border-stone-700/60 transition-colors cursor-pointer"
+                >
+                  설정/로그
+                </button>
+              )}
             </div>
           </div>
         </div>

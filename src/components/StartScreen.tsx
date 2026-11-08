@@ -25,7 +25,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   const currentEpisode = EPISODES.find(e => e.id === selectedEpisodeId) || EPISODES[0];
 
   return (
-    <div className="flex flex-col min-h-full max-w-md mx-auto px-4 py-6 sm:py-8 select-none justify-between">
+    <div className="flex flex-col min-h-full max-w-md mx-auto px-4 py-4 sm:py-5 select-none justify-between space-y-4">
       {/* Top Bar / App Logo */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">

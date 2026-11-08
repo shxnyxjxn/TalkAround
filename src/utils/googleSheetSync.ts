@@ -1,23 +1,23 @@
 import { GoogleSheetRecord } from '../types';
 
-const STORAGE_KEY_WEBAPP_URL = 'grade5_words_gas_webapp_url';
-const STORAGE_KEY_RECORDS = 'grade5_words_sheet_records';
+const STORAGE_KEY_WEBAPP_URL = 'talk_around_gas_webapp_url';
+const STORAGE_KEY_RECORDS = 'talk_around_sheet_records';
 
 export const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxIrQc4-yR5-BA11Xy1jIL-175KuJO8Wj-hfqjP46SEBUCgsIVuBR-SiLuVxA07U-AxcQ/exec';
 
 export const GOOGLE_APPS_SCRIPT_CODE = `/**
  * ====================================================================
- * [초등 5학년 영어 단어 게임] 구글 스프레드시트 자동 기록 스크립트
+ * [토크어라운드 (Talk Around)] 구글 스프레드시트 학습 기록 자동 저장 스크립트
  * ====================================================================
  * 헤더 열 구성:
- * timestamp | name | play_count | correct_count | wrong_count | average_taps | sentence_tap_frequency
+ * timestamp | name | play_count | correct_count | wrong_count
  * 
  * [1분 배포 가이드]
  * 1. 구글 스프레드시트 상단 메뉴 > [확장 프로그램] > [Apps Script] 클릭
  * 2. 기존 코드를 모두 지우고 이 스크립트를 전체 복사하여 붙여넣기
  * 3. 오른쪽 위 파란색 [배포] 버튼 클릭 > [새 배포] 선택
  * 4. 톱니바퀴 아이콘 클릭 > [웹 앱] 선택
- *    - 설명: 초등 영단어 게임 & 문장별 탭 빈도/평균 연동
+ *    - 설명: 토크어라운드 학습 기록 연동
  *    - 다음 사용자 권한으로 실행: '나(내 계정)'
  *    - 액세스 권한이 있는 사용자: '모든 사용자 (Anyone)' <-- 필수로 지정!
  * 5. [배포] 버튼 누르고 승인 완료 후 생성된 '웹 앱 URL'을 게임에 연결하세요!
@@ -30,29 +30,14 @@ function doPost(e) {
 
     // 시트에 데이터가 없으면 헤더(1행) 자동 생성
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        "timestamp", 
-        "name", 
-        "play_count", 
-        "correct_count", 
-        "wrong_count", 
-        "average_taps", 
-        "sentence_tap_frequency"
-      ]);
+      sheet.appendRow(["timestamp", "name", "play_count", "correct_count", "wrong_count"]);
       
-      // 헤더 스타일 꾸미기 (파란 배경, 흰색 볼드 글씨, 가운데 정렬)
-      var headerRange = sheet.getRange(1, 1, 1, 7);
-      headerRange.setBackground("#2563eb");
-      headerRange.setFontColor("#ffffff");
+      // 헤더 스타일 꾸미기 (남색/파란 배경, 흰색 볼드 글씨, 가운데 정렬)
+      var headerRange = sheet.getRange(1, 1, 1, 5);
+      headerRange.setBackground("#1e293b");
+      headerRange.setFontColor("#f59e0b");
       headerRange.setFontWeight("bold");
       headerRange.setHorizontalAlignment("center");
-    } else {
-      // 기존 5열 시트인 경우 6, 7열 헤더 확장
-      var lastCol = sheet.getLastColumn();
-      if (lastCol <= 5) {
-        sheet.getRange(1, 6).setValue("average_taps").setFontWeight("bold");
-        sheet.getRange(1, 7).setValue("sentence_tap_frequency").setFontWeight("bold");
-      }
     }
 
     var payload = {};
@@ -67,49 +52,23 @@ function doPost(e) {
     }
 
     var timestamp = payload.timestamp || Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-    var name = payload.name || "익명 학생";
+    var name = payload.name || "익명 학습자";
     var playCount = payload.play_count !== undefined ? Number(payload.play_count) : 1;
     var correctCount = payload.correct_count !== undefined ? Number(payload.correct_count) : 0;
     var wrongCount = payload.wrong_count !== undefined ? Number(payload.wrong_count) : 0;
-    var averageTaps = payload.average_taps !== undefined ? Number(payload.average_taps) : 0;
-    var sentenceSummary = payload.sentence_summary || payload.sentence_tap_frequency || "문장 탭 없음";
 
-    // 1. 요약 메인 행 추가
-    sheet.appendRow([
-      timestamp, 
-      name, 
-      playCount, 
-      correctCount, 
-      wrongCount, 
-      averageTaps, 
-      sentenceSummary
-    ]);
-
-    // 2. 문장별 상세 데이터가 있을 경우 '문장별_탭_상세' 탭에도 자동 보조 기록
-    if (payload.sentence_tap_details && Array.isArray(payload.sentence_tap_details) && payload.sentence_tap_details.length > 0) {
-      var detailSheet = ss.getSheetByName("문장별_탭_상세");
-      if (!detailSheet) {
-        detailSheet = ss.insertSheet("문장별_탭_상세");
-        detailSheet.appendRow(["timestamp", "name", "sentence", "tap_count", "average_taps"]);
-        detailSheet.getRange(1, 1, 1, 5).setBackground("#4f46e5").setFontColor("#ffffff").setFontWeight("bold");
-      }
-      for (var i = 0; i < payload.sentence_tap_details.length; i++) {
-        var itm = payload.sentence_tap_details[i];
-        detailSheet.appendRow([timestamp, name, itm.sentence, itm.taps, averageTaps]);
-      }
-    }
+    // 데이터 행 추가
+    sheet.appendRow([timestamp, name, playCount, correctCount, wrongCount]);
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      message: "성공적으로 구글 시트에 저장되었습니다! (문장별 탭 빈도 & 평균 포함)",
+      message: "성공적으로 구글 시트에 기록되었습니다.",
       data: {
         timestamp: timestamp,
         name: name,
         play_count: playCount,
         correct_count: correctCount,
-        wrong_count: wrongCount,
-        average_taps: averageTaps,
-        sentence_tap_frequency: sentenceSummary
+        wrong_count: wrongCount
       }
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -124,8 +83,8 @@ function doPost(e) {
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: "online",
-    title: "초등학교 5학년 영어 단어 게임 구글 시트 연동 웹앱",
-    columns: ["timestamp", "name", "play_count", "correct_count", "wrong_count", "average_taps", "sentence_tap_frequency"],
+    title: "토크어라운드 (Talk Around) 구글 시트 연동 웹앱",
+    columns: ["timestamp", "name", "play_count", "correct_count", "wrong_count"],
     message: "Google Apps Script가 정상 동작 중입니다. POST로 데이터를 전송하세요.",
     serverTime: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
@@ -183,6 +142,11 @@ export function saveRecords(records: GoogleSheetRecord[]): void {
   }
 }
 
+export function saveRecordLocally(record: GoogleSheetRecord): void {
+  const current = getSavedRecords();
+  saveRecords([record, ...current]);
+}
+
 export function formatCurrentTimestamp(): string {
   const now = new Date();
   const pad = (n: number) => (n < 10 ? '0' + n : n);
@@ -201,10 +165,6 @@ export interface SyncPayload {
   play_count: number;
   correct_count: number;
   wrong_count: number;
-  average_taps?: number;
-  sentence_summary?: string;
-  total_sentence_taps?: number;
-  sentence_tap_details?: Array<{ sentence: string; taps: number }>;
 }
 
 export interface SyncResult {
@@ -213,7 +173,8 @@ export interface SyncResult {
 }
 
 /**
- * Sends game log and sentence tap frequency/average to Google Sheets
+ * Sends simulation log to Google Sheets with the exact 5 keys:
+ * timestamp, name, play_count, correct_count, wrong_count
  */
 export async function sendRecordToGoogleSheet(
   payload: SyncPayload,
@@ -228,12 +189,20 @@ export async function sendRecordToGoogleSheet(
     };
   }
 
+  const cleanPayload: SyncPayload = {
+    timestamp: payload.timestamp || formatCurrentTimestamp(),
+    name: payload.name || '익명 학습자',
+    play_count: Number(payload.play_count) || 1,
+    correct_count: Number(payload.correct_count) || 0,
+    wrong_count: Number(payload.wrong_count) || 0,
+  };
+
   // 1. Try server proxy first to avoid any browser CORS / mixed-content restrictions
   try {
     const proxyRes = await fetch('/api/sync-sheet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webAppUrl: targetUrl, payload }),
+      body: JSON.stringify({ webAppUrl: targetUrl, payload: cleanPayload }),
     });
 
     if (proxyRes.ok) {
@@ -241,7 +210,7 @@ export async function sendRecordToGoogleSheet(
       if (data.success) {
         return {
           success: true,
-          message: '구글 스프레드시트에 문장별 탭 빈도 및 평균이 성공적으로 저장되었습니다! ✅',
+          message: '구글 스프레드시트에 성공적으로 저장되었습니다! ✅',
         };
       }
     }
@@ -254,7 +223,7 @@ export async function sendRecordToGoogleSheet(
     const directRes = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(cleanPayload),
     });
 
     if (directRes.ok) {
@@ -270,7 +239,7 @@ export async function sendRecordToGoogleSheet(
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(cleanPayload),
       });
 
       return {
@@ -299,34 +268,25 @@ export async function testSheetConnection(url: string): Promise<SyncResult> {
     timestamp: formatCurrentTimestamp(),
     name: '🧪 연동 테스트',
     play_count: 1,
-    correct_count: 1,
+    correct_count: 5,
     wrong_count: 0,
-    average_taps: 3.5,
-    sentence_summary: '"Practice makes perfect!"(5회), "Our classroom is clean."(2회)',
-    total_sentence_taps: 7,
-    sentence_tap_details: [
-      { sentence: 'Practice makes perfect!', taps: 5 },
-      { sentence: 'Our classroom is clean.', taps: 2 },
-    ],
   };
 
   return sendRecordToGoogleSheet(testPayload, url);
 }
 
 /**
- * Exports records as a clean CSV with all columns:
- * timestamp, name, play_count, correct_count, wrong_count, average_taps, sentence_summary
+ * Exports records as a clean CSV with the exact 5 keys:
+ * timestamp, name, play_count, correct_count, wrong_count
  */
-export function exportRecordsToCSV(records: GoogleSheetRecord[], filename: string = 'english_game_records.csv') {
-  const headers = ['timestamp', 'name', 'play_count', 'correct_count', 'wrong_count', 'average_taps', 'sentence_summary'];
+export function exportRecordsToCSV(records: GoogleSheetRecord[], filename: string = 'talk_around_records.csv') {
+  const headers = ['timestamp', 'name', 'play_count', 'correct_count', 'wrong_count'];
   const rows = records.map(r => [
     `"${r.timestamp}"`,
-    `"${(r.name || '').replace(/"/g, '""')}"`,
+    `"${(r.name || '익명 학습자').replace(/"/g, '""')}"`,
     r.play_count,
     r.correct_count,
     r.wrong_count,
-    r.average_taps !== undefined ? r.average_taps : 0,
-    `"${(r.sentence_summary || '').replace(/"/g, '""')}"`,
   ]);
 
   const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
