@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, ExternalLink, Sheet, Play, Download, AlertCircle, Sparkles, RefreshCw, FileSpreadsheet, Info } from 'lucide-react';
-import { GOOGLE_APPS_SCRIPT_CODE, getSavedWebAppUrl, saveWebAppUrl, testSheetConnection, getSavedRecords, exportRecordsToCSV, formatCurrentTimestamp } from '../utils/googleSheetSync';
+import { GOOGLE_APPS_SCRIPT_CODE, getSavedWebAppUrl, saveWebAppUrl, testSheetConnection, exportRecordsToCSV, formatCurrentTimestamp } from '../utils/googleSheetSync';
 import { GoogleSheetRecord, LearnerProfile } from '../types';
 
 interface GoogleSheetSyncModalProps {
@@ -27,6 +27,8 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
   const [activeTab, setActiveTab] = useState<'script' | 'settings' | 'logs'>('settings');
 
   if (!isOpen) return null;
+
+  const currentNickname = profile.nickname || profile.name || '익명';
 
   const handleCopyCode = async () => {
     try {
@@ -73,18 +75,18 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-stone-800 flex items-center justify-between bg-stone-950/60">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-2 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Sheet className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 토크어라운드 구글 스프레드시트 연동
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold font-mono">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold font-mono">
                   Google Apps Script
                 </span>
               </h3>
               <p className="text-xs text-stone-400">
-                열 구성: <code className="text-amber-300 font-mono">timestamp, name, play_count, correct_count, wrong_count</code>
+                5개 열 구성: <code className="text-amber-300 font-mono">timestamp, nickname, scenario_name, play_count, appropriateness_score</code>
               </p>
             </div>
           </div>
@@ -96,10 +98,10 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
           </button>
         </div>
 
-        {/* Notice Strip (수업 지침 안내 문구) */}
-        <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2 text-xs text-amber-200">
+        {/* Notice Strip (개인정보 수집 및 학습 기록 안내 문구) */}
+        <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2 text-xs text-amber-200">
           <Info className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>학습 참여도 및 피드백 제공을 위해 닉네임과 시뮬레이션 플레이 기록이 구글 시트에 자동 기록됩니다.</span>
+          <span>학습 참여도 및 피드백 제공을 위해 닉네임, 플레이한 시나리오, 대화 적합도 점수가 구글 시트에 자동 기록됩니다.</span>
         </div>
 
         {/* Tab Navigation */}
@@ -108,7 +110,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
             onClick={() => setActiveTab('settings')}
             className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'settings'
-                ? 'border-emerald-500 text-emerald-300'
+                ? 'border-amber-500 text-amber-300 font-bold'
                 : 'border-transparent text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -119,7 +121,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
             onClick={() => setActiveTab('script')}
             className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'script'
-                ? 'border-emerald-500 text-emerald-300'
+                ? 'border-amber-500 text-amber-300 font-bold'
                 : 'border-transparent text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -130,7 +132,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
             onClick={() => setActiveTab('logs')}
             className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'logs'
-                ? 'border-emerald-500 text-emerald-300'
+                ? 'border-amber-500 text-amber-300 font-bold'
                 : 'border-transparent text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -159,7 +161,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                   <button
                     onClick={handleSaveAndTest}
                     disabled={isTesting}
-                    className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer disabled:opacity-50 shadow-md"
                   >
                     {isTesting ? (
                       <>
@@ -168,14 +170,14 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                       </>
                     ) : (
                       <>
-                        <Play className="w-3.5 h-3.5" />
+                        <Play className="w-3.5 h-3.5 fill-stone-950" />
                         <span>저장 & 연동 테스트</span>
                       </>
                     )}
                   </button>
                 </div>
                 <p className="text-[11px] text-stone-400">
-                  * Apps Script 배포 시 생성된 <code className="text-amber-300">/exec</code>로 끝나는 URL을 입력하세요. (.env.local에 설정된 기본 URL이 자동 로드됩니다)
+                  * Apps Script 배포 시 생성된 <code className="text-amber-300">/exec</code>로 끝나는 URL을 입력하세요.
                 </p>
               </div>
 
@@ -198,7 +200,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                     <div>{testResult.message}</div>
                     {testResult.success && (
                       <div className="mt-1 text-[11px] text-emerald-300">
-                        이제 시뮬레이션 에피소드를 마칠 때마다 학습 기록이 실시간으로 해당 구글 시트에 저장됩니다.
+                        이제 시나리오 대화가 끝날 때마다 5개 열 데이터가 실시간으로 구글 시트에 자동 저장됩니다.
                       </div>
                     )}
                   </div>
@@ -208,26 +210,28 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
               {/* Schema Table Preview */}
               <div className="p-3.5 rounded-2xl bg-stone-950/60 border border-stone-800 space-y-2">
                 <span className="text-xs font-bold text-stone-300">
-                  구글 시트에 기록되는 5개 열 데이터 예시 (1행 추가 미리보기)
+                  구글 시트에 기록되는 5개 열(A~E) 데이터 전송 형식
                 </span>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px] text-left border-collapse font-mono">
                     <thead>
                       <tr className="bg-stone-800/60 text-stone-300">
-                        <th className="p-2 border border-stone-700">timestamp</th>
-                        <th className="p-2 border border-stone-700">name</th>
-                        <th className="p-2 border border-stone-700 text-center">play_count</th>
-                        <th className="p-2 border border-stone-700 text-center text-emerald-400">correct_count</th>
-                        <th className="p-2 border border-stone-700 text-center text-rose-400">wrong_count</th>
+                        <th className="p-2 border border-stone-700">A: timestamp</th>
+                        <th className="p-2 border border-stone-700">B: nickname</th>
+                        <th className="p-2 border border-stone-700">C: scenario_name</th>
+                        <th className="p-2 border border-stone-700 text-center">D: play_count</th>
+                        <th className="p-2 border border-stone-700 text-center text-amber-400">E: appropriateness_score</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr className="text-stone-200 bg-stone-900/40">
                         <td className="p-2 border border-stone-800 text-stone-400">{formatCurrentTimestamp()}</td>
-                        <td className="p-2 border border-stone-800 font-bold text-amber-300">{profile.name || '익명 학습자'}</td>
+                        <td className="p-2 border border-stone-800 font-bold text-amber-300">{currentNickname}</td>
+                        <td className="p-2 border border-stone-800 text-stone-300">{profile.last_scenario_name || '[캠퍼스] 룸메이트 갈등 중재 (Alex)'}</td>
                         <td className="p-2 border border-stone-800 text-center">{profile.play_count || 1}</td>
-                        <td className="p-2 border border-stone-800 text-center text-emerald-400">{profile.correct_count}</td>
-                        <td className="p-2 border border-stone-800 text-center text-rose-400">{profile.wrong_count}</td>
+                        <td className="p-2 border border-stone-800 text-center font-bold text-amber-400">
+                          {profile.last_appropriateness_score !== undefined ? `${profile.last_appropriateness_score}%` : '92%'}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -242,20 +246,20 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
               <div className="p-3.5 rounded-2xl bg-stone-950/80 border border-stone-800 space-y-2">
                 <div className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" />
-                  <span>구글 시트 연동 초간단 4단계 가이드</span>
+                  <span>새 5개 열 구글 시트 연동 초간단 4단계 가이드</span>
                 </div>
                 <ol className="text-xs text-stone-300 space-y-1.5 list-decimal list-inside pl-1 leading-relaxed">
                   <li>
-                    사용하실 <strong>구글 스프레드시트</strong>를 열고 상단 메뉴에서 <span className="text-white bg-stone-800 px-1.5 py-0.5 rounded font-medium">[확장 프로그램] → [Apps Script]</span>를 클릭합니다.
+                    사용하실 <strong>구글 스프레드시트</strong> 상단 메뉴에서 <span className="text-white bg-stone-800 px-1.5 py-0.5 rounded font-medium">[확장 프로그램] → [Apps Script]</span>를 클릭합니다.
                   </li>
                   <li>
-                    아래의 <strong>앱스 스크립트 코드</strong>를 전체 복사하여 <code className="text-emerald-400">Code.gs</code>에 그대로 붙여넣습니다.
+                    아래의 <strong>최신 앱스 스크립트 코드</strong>를 전체 복사하여 <code className="text-amber-400">Code.gs</code>에 붙여넣습니다. (기존 코드가 있다면 전체 덮어쓰기)
                   </li>
                   <li>
                     오른쪽 상단 파란색 <span className="text-white bg-blue-600 px-1.5 py-0.5 rounded font-medium">[배포] → [새 배포]</span>를 누르고, 톱니바퀴에서 <span className="text-white bg-stone-800 px-1.5 py-0.5 rounded font-medium">[웹 앱]</span>을 선택합니다.
                   </li>
                   <li>
-                    액세스 권한을 <span className="text-amber-300 font-bold bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-500/40">[모든 사용자 (Anyone)]</span>로 지정하고 배포 후 나온 <strong>웹 앱 URL</strong>을 등록하세요!
+                    액세스 권한을 <span className="text-amber-300 font-bold bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-500/40">[모든 사용자 (Anyone)]</span>로 지정하고 배포 후 나온 <strong>웹 앱 URL</strong>을 [1. 등록 & 테스트]에 입력하세요!
                   </li>
                 </ol>
               </div>
@@ -264,14 +268,14 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-stone-300 font-mono">
-                    Code.gs (Apps Script)
+                    Code.gs (최신 5개 열 Apps Script 코드)
                   </span>
                   <button
                     onClick={handleCopyCode}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isCopied
                         ? 'bg-emerald-500 text-stone-950 shadow-md shadow-emerald-500/20'
-                        : 'bg-amber-500 hover:bg-amber-400 text-stone-950'
+                        : 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md'
                     }`}
                   >
                     {isCopied ? (
@@ -306,7 +310,7 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                     로컬 및 시트 전송 기록 ({records.length}건)
                   </span>
                   <p className="text-[11px] text-stone-400">
-                    네트워크가 끊기더라도 모든 플레이 기록이 브라우저에 안전하게 보존됩니다.
+                    대화 시뮬레이션을 완료할 때마다 5개 열 데이터가 자동 기록됩니다.
                   </p>
                 </div>
                 <button
@@ -329,11 +333,11 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                   <table className="w-full text-[11px] text-left border-collapse font-mono">
                     <thead className="sticky top-0 bg-stone-950 text-stone-300 border-b border-stone-800">
                       <tr>
-                        <th className="p-2 font-semibold">일시 (timestamp)</th>
-                        <th className="p-2 font-semibold">닉네임 (name)</th>
+                        <th className="p-2 font-semibold">일시</th>
+                        <th className="p-2 font-semibold">닉네임</th>
+                        <th className="p-2 font-semibold">시나리오</th>
                         <th className="p-2 font-semibold text-center">플레이수</th>
-                        <th className="p-2 font-semibold text-center text-emerald-400">정답</th>
-                        <th className="p-2 font-semibold text-center text-rose-400">실수</th>
+                        <th className="p-2 font-semibold text-center text-amber-400">적합도 점수</th>
                         <th className="p-2 font-semibold text-center">상태</th>
                       </tr>
                     </thead>
@@ -341,10 +345,10 @@ export const GoogleSheetSyncModal: React.FC<GoogleSheetSyncModalProps> = ({
                       {records.map((r, i) => (
                         <tr key={i} className="hover:bg-stone-800/30 transition-colors">
                           <td className="p-2 text-stone-400">{r.timestamp}</td>
-                          <td className="p-2 font-bold text-stone-100">{r.name}</td>
-                          <td className="p-2 text-center text-amber-300">{r.play_count}</td>
-                          <td className="p-2 text-center text-emerald-300">{r.correct_count}</td>
-                          <td className="p-2 text-center text-rose-300">{r.wrong_count}</td>
+                          <td className="p-2 font-bold text-stone-100">{r.nickname}</td>
+                          <td className="p-2 text-stone-300 max-w-[120px] truncate">{r.scenario_name}</td>
+                          <td className="p-2 text-center text-stone-200">{r.play_count}</td>
+                          <td className="p-2 text-center font-bold text-amber-400">{r.appropriateness_score}</td>
                           <td className="p-2 text-center">
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
                               저장됨

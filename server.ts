@@ -146,14 +146,19 @@ app.post('/api/sync-sheet', async (req, res) => {
     const payload = req.body.payload || {};
     const { 
       timestamp, 
-      name, 
+      nickname,
+      name,
+      scenario_name,
       play_count, 
-      correct_count, 
-      wrong_count, 
+      appropriateness_score,
     } = payload;
     
-    // Call Google Apps Script Web App with the required 5 keys:
-    // timestamp, name, play_count, correct_count, wrong_count
+    // Call Google Apps Script Web App with the 5 columns (A~E):
+    // timestamp, nickname, scenario_name, play_count, appropriateness_score
+    const cleanNickname = nickname || name || '익명';
+    const cleanScenario = scenario_name || 'NYC 실전 회화 시뮬레이션';
+    const cleanScore = appropriateness_score !== undefined ? appropriateness_score : '100%';
+
     const fetchResponse = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -161,10 +166,10 @@ app.post('/api/sync-sheet', async (req, res) => {
       },
       body: JSON.stringify({
         timestamp: timestamp || new Date().toISOString(),
-        name: name || '익명 학습자',
+        nickname: cleanNickname,
+        scenario_name: cleanScenario,
         play_count: Number(play_count) || 1,
-        correct_count: Number(correct_count) || 0,
-        wrong_count: Number(wrong_count) || 0,
+        appropriateness_score: cleanScore,
       }),
       redirect: 'follow',
     });

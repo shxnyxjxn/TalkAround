@@ -9,18 +9,18 @@ export const GOOGLE_APPS_SCRIPT_CODE = `/**
  * ====================================================================
  * [토크어라운드 (Talk Around)] 구글 스프레드시트 학습 기록 자동 저장 스크립트
  * ====================================================================
- * 헤더 열 구성:
- * timestamp | name | play_count | correct_count | wrong_count
+ * 5개 헤더 열 구성 (A~E열):
+ * A: timestamp | B: nickname | C: scenario_name | D: play_count | E: appropriateness_score
  * 
  * [1분 배포 가이드]
  * 1. 구글 스프레드시트 상단 메뉴 > [확장 프로그램] > [Apps Script] 클릭
  * 2. 기존 코드를 모두 지우고 이 스크립트를 전체 복사하여 붙여넣기
  * 3. 오른쪽 위 파란색 [배포] 버튼 클릭 > [새 배포] 선택
  * 4. 톱니바퀴 아이콘 클릭 > [웹 앱] 선택
- *    - 설명: 토크어라운드 학습 기록 연동
+ *    - 설명: 토크어라운드 대화 적합도 시뮬레이션 기록 연동
  *    - 다음 사용자 권한으로 실행: '나(내 계정)'
- *    - 액세스 권한이 있는 사용자: '모든 사용자 (Anyone)' <-- 필수로 지정!
- * 5. [배포] 버튼 누르고 승인 완료 후 생성된 '웹 앱 URL'을 게임에 연결하세요!
+ *    - 액세스 권한이 있는 사용자: '모든 사용자 (Anyone)' <-- 필수!
+ * 5. [배포] 버튼 누르고 생성된 '웹 앱 URL'을 게임의 [구글 시트 연동 설정]에 등록하세요!
  */
 
 function doPost(e) {
@@ -28,13 +28,13 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getActiveSheet();
 
-    // 시트에 데이터가 없으면 헤더(1행) 자동 생성
+    // 시트에 데이터가 없으면 헤더(1행) 자동 생성 (A~E열)
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(["timestamp", "name", "play_count", "correct_count", "wrong_count"]);
+      sheet.appendRow(["timestamp", "nickname", "scenario_name", "play_count", "appropriateness_score"]);
       
-      // 헤더 스타일 꾸미기 (남색/파란 배경, 흰색 볼드 글씨, 가운데 정렬)
+      // 헤더 스타일 꾸미기 (다크 테마 배경, 앰버 옐로우 텍스트, 중앙 정렬)
       var headerRange = sheet.getRange(1, 1, 1, 5);
-      headerRange.setBackground("#1e293b");
+      headerRange.setBackground("#1c1917");
       headerRange.setFontColor("#f59e0b");
       headerRange.setFontWeight("bold");
       headerRange.setHorizontalAlignment("center");
@@ -52,23 +52,23 @@ function doPost(e) {
     }
 
     var timestamp = payload.timestamp || Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-    var name = payload.name || "익명 학습자";
+    var nickname = payload.nickname || payload.name || "익명";
+    var scenarioName = payload.scenario_name || "NYC 실전 회화 시뮬레이션";
     var playCount = payload.play_count !== undefined ? Number(payload.play_count) : 1;
-    var correctCount = payload.correct_count !== undefined ? Number(payload.correct_count) : 0;
-    var wrongCount = payload.wrong_count !== undefined ? Number(payload.wrong_count) : 0;
+    var appropriatenessScore = payload.appropriateness_score !== undefined ? payload.appropriateness_score : "100%";
 
-    // 데이터 행 추가
-    sheet.appendRow([timestamp, name, playCount, correctCount, wrongCount]);
+    // 데이터 행 추가 (A~E열)
+    sheet.appendRow([timestamp, nickname, scenarioName, playCount, appropriatenessScore]);
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       message: "성공적으로 구글 시트에 기록되었습니다.",
       data: {
         timestamp: timestamp,
-        name: name,
+        nickname: nickname,
+        scenario_name: scenarioName,
         play_count: playCount,
-        correct_count: correctCount,
-        wrong_count: wrongCount
+        appropriateness_score: appropriatenessScore
       }
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -83,8 +83,8 @@ function doPost(e) {
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: "online",
-    title: "토크어라운드 (Talk Around) 구글 시트 연동 웹앱",
-    columns: ["timestamp", "name", "play_count", "correct_count", "wrong_count"],
+    title: "토크어라운드 (Talk Around) 대화 적합도 기록 웹앱",
+    columns: ["timestamp", "nickname", "scenario_name", "play_count", "appropriateness_score"],
     message: "Google Apps Script가 정상 동작 중입니다. POST로 데이터를 전송하세요.",
     serverTime: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
@@ -161,10 +161,10 @@ export function formatCurrentTimestamp(): string {
 
 export interface SyncPayload {
   timestamp: string;
-  name: string;
+  nickname: string;
+  scenario_name: string;
   play_count: number;
-  correct_count: number;
-  wrong_count: number;
+  appropriateness_score: number | string;
 }
 
 export interface SyncResult {
@@ -174,7 +174,7 @@ export interface SyncResult {
 
 /**
  * Sends simulation log to Google Sheets with the exact 5 keys:
- * timestamp, name, play_count, correct_count, wrong_count
+ * timestamp, nickname, scenario_name, play_count, appropriateness_score
  */
 export async function sendRecordToGoogleSheet(
   payload: SyncPayload,
@@ -191,10 +191,10 @@ export async function sendRecordToGoogleSheet(
 
   const cleanPayload: SyncPayload = {
     timestamp: payload.timestamp || formatCurrentTimestamp(),
-    name: payload.name || '익명 학습자',
+    nickname: payload.nickname || (payload as any).name || '익명',
+    scenario_name: payload.scenario_name || 'NYC 실전 회화 시뮬레이션',
     play_count: Number(payload.play_count) || 1,
-    correct_count: Number(payload.correct_count) || 0,
-    wrong_count: Number(payload.wrong_count) || 0,
+    appropriateness_score: payload.appropriateness_score !== undefined ? payload.appropriateness_score : '100%',
   };
 
   // 1. Try server proxy first to avoid any browser CORS / mixed-content restrictions
@@ -266,10 +266,10 @@ export async function sendRecordToGoogleSheet(
 export async function testSheetConnection(url: string): Promise<SyncResult> {
   const testPayload: SyncPayload = {
     timestamp: formatCurrentTimestamp(),
-    name: '🧪 연동 테스트',
+    nickname: '테스트 학습자',
+    scenario_name: '[캠퍼스] 카페 주문 시뮬레이션 (Sarah)',
     play_count: 1,
-    correct_count: 5,
-    wrong_count: 0,
+    appropriateness_score: '95%',
   };
 
   return sendRecordToGoogleSheet(testPayload, url);
@@ -277,16 +277,16 @@ export async function testSheetConnection(url: string): Promise<SyncResult> {
 
 /**
  * Exports records as a clean CSV with the exact 5 keys:
- * timestamp, name, play_count, correct_count, wrong_count
+ * timestamp, nickname, scenario_name, play_count, appropriateness_score
  */
 export function exportRecordsToCSV(records: GoogleSheetRecord[], filename: string = 'talk_around_records.csv') {
-  const headers = ['timestamp', 'name', 'play_count', 'correct_count', 'wrong_count'];
+  const headers = ['timestamp', 'nickname', 'scenario_name', 'play_count', 'appropriateness_score'];
   const rows = records.map(r => [
     `"${r.timestamp}"`,
-    `"${(r.name || '익명 학습자').replace(/"/g, '""')}"`,
+    `"${(r.nickname || '익명').replace(/"/g, '""')}"`,
+    `"${(r.scenario_name || '').replace(/"/g, '""')}"`,
     r.play_count,
-    r.correct_count,
-    r.wrong_count,
+    `"${r.appropriateness_score}"`,
   ]);
 
   const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');

@@ -30,11 +30,10 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 const DEFAULT_LEARNER_PROFILE: LearnerProfile = {
-  name: '익명 학습자',
+  nickname: '익명',
+  name: '익명',
   avatar: '🗽',
   play_count: 0,
-  correct_count: 0,
-  wrong_count: 0,
 };
 
 export default function App() {
@@ -52,7 +51,14 @@ export default function App() {
   const [learnerProfile, setLearnerProfile] = useState<LearnerProfile>(() => {
     try {
       const saved = localStorage.getItem('talk_around_learner_profile');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_LEARNER_PROFILE,
+          ...parsed,
+          nickname: parsed.nickname || parsed.name || '익명',
+        };
+      }
     } catch (e) {
       console.warn('Failed to load learner profile:', e);
     }
@@ -78,11 +84,15 @@ export default function App() {
     }
   }, [settings]);
 
-  // Update Learner Name
-  const handleUpdateName = (newName: string) => {
-    const cleanName = newName.trim() || '익명 학습자';
+  // Update Learner Nickname
+  const handleUpdateNickname = (newNickname: string) => {
+    const cleanNickname = newNickname.trim() || '익명';
     setLearnerProfile(prev => {
-      const updated = { ...prev, name: cleanName };
+      const updated: LearnerProfile = {
+        ...prev,
+        nickname: cleanNickname,
+        name: cleanNickname,
+      };
       try {
         localStorage.setItem('talk_around_learner_profile', JSON.stringify(updated));
       } catch (e) {
@@ -99,23 +109,27 @@ export default function App() {
   };
 
   /**
-   * Finishes simulation game, updates cumulative play/correct/wrong counts,
+   * Finishes simulation game, updates cumulative play count & last appropriateness score,
    * and automatically sends records to the Google Apps Script Web App URL.
-   * Required payload keys: timestamp, name, play_count, correct_count, wrong_count
+   * Required 5 payload keys (A~E): timestamp, nickname, scenario_name, play_count, appropriateness_score
    */
   const handleFinishGame = async (result: SessionResult) => {
-    const sessionCorrect = result.bestChoicesCount;
-    const sessionWrong = Math.max(0, result.totalTurns - result.bestChoicesCount);
-
     const nextPlayCount = (learnerProfile.play_count || 0) + 1;
-    const nextCorrectCount = (learnerProfile.correct_count || 0) + sessionCorrect;
-    const nextWrongCount = (learnerProfile.wrong_count || 0) + sessionWrong;
+    const categoryTag =
+      activeEpisode.category === 'campus'
+        ? '캠퍼스'
+        : activeEpisode.category === 'business'
+        ? '비즈니스'
+        : '여행';
+    const scenarioName = `[${categoryTag}] ${activeEpisode.titleKo} (${activeEpisode.npc.name})`;
+    const appropriatenessScore = `${result.finalAffinity}%`;
 
     const updatedProfile: LearnerProfile = {
       ...learnerProfile,
+      nickname: learnerProfile.nickname || learnerProfile.name || '익명',
       play_count: nextPlayCount,
-      correct_count: nextCorrectCount,
-      wrong_count: nextWrongCount,
+      last_appropriateness_score: result.finalAffinity,
+      last_scenario_name: scenarioName,
       lastPlayed: new Date().toISOString(),
     };
 
@@ -129,10 +143,10 @@ export default function App() {
     const timestamp = formatCurrentTimestamp();
     const payload = {
       timestamp,
-      name: updatedProfile.name || '익명 학습자',
+      nickname: updatedProfile.nickname,
+      scenario_name: scenarioName,
       play_count: nextPlayCount,
-      correct_count: nextCorrectCount,
-      wrong_count: nextWrongCount,
+      appropriateness_score: appropriatenessScore,
     };
 
     // Auto transmit to Google Sheets
@@ -183,12 +197,21 @@ export default function App() {
   const handleRetrySheetSync = async () => {
     if (!sessionResult) return;
     const timestamp = formatCurrentTimestamp();
+    const categoryTag =
+      activeEpisode.category === 'campus'
+        ? '캠퍼스'
+        : activeEpisode.category === 'business'
+        ? '비즈니스'
+        : '여행';
+    const scenarioName = `[${categoryTag}] ${activeEpisode.titleKo} (${activeEpisode.npc.name})`;
+    const appropriatenessScore = `${sessionResult.finalAffinity}%`;
+
     const payload = {
       timestamp,
-      name: learnerProfile.name || '익명 학습자',
-      play_count: learnerProfile.play_count,
-      correct_count: learnerProfile.correct_count,
-      wrong_count: learnerProfile.wrong_count,
+      nickname: learnerProfile.nickname || learnerProfile.name || '익명',
+      scenario_name: scenarioName,
+      play_count: learnerProfile.play_count || 1,
+      appropriateness_score: appropriatenessScore,
     };
 
     const syncRes = await sendRecordToGoogleSheet(payload);
@@ -275,7 +298,7 @@ export default function App() {
         <LearnerHeader
           profile={learnerProfile}
           hasSheetUrl={!!getSavedWebAppUrl()}
-          onUpdateName={handleUpdateName}
+          onUpdateNickname={handleUpdateNickname}
           onOpenSheetModal={() => setIsSheetModalOpen(true)}
         />
 

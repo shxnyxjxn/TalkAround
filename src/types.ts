@@ -120,43 +120,26 @@ export interface UserSettings {
 // ==========================================
 
 export interface LearnerProfile {
-  name: string;           // 학습자 닉네임 (기본값: '익명 학습자')
-  avatar: string;         // 아바타 이모지 (예: 🗽, 💼, ☕, 🌟)
-  play_count: number;     // 누적 시뮬레이션 플레이 횟수
-  correct_count: number;  // 적절한 원어민 표현 선택 수 (Best choice)
-  wrong_count: number;    // 부적절한 표현 / 실수 선택 수
+  nickname: string;           // 학습자 닉네임 (기본값: '익명')
+  name?: string;              // 하위 호환성용
+  avatar: string;             // 아바타 이모지 (예: 🗽, 💼, ☕, 🌟)
+  play_count: number;         // 누적 시뮬레이션 플레이 횟수
+  last_appropriateness_score?: number; // 최근 획득 대화 적합도 점수 (%)
+  last_scenario_name?: string; // 최근 플레이 시나리오
+  correct_count?: number;     // 참고용 카운트
+  wrong_count?: number;       // 참고용 카운트
   lastPlayed?: string;
 }
 
 export type StudentProfile = LearnerProfile;
 
-export interface SentenceTapItem {
-  sentence: string;
-  sentenceKo?: string;
-  category?: string;
-  tapCount: number;
-  lastTappedAt: string;
-}
-
-export interface SentenceTapStats {
-  items: Record<string, SentenceTapItem>;
-  totalTaps: number;
-  uniqueSentencesCount: number;
-  averageTaps: number; // e.g. 2.45
-  topSentence?: SentenceTapItem;
-}
-
 export interface GoogleSheetRecord {
   id: string;
-  timestamp: string;      // "YYYY-MM-DD HH:mm:ss"
-  name: string;           // Student Name
-  play_count: number;     // Total plays
-  correct_count: number;  // Correct count
-  wrong_count: number;    // Wrong count
-  average_taps?: number;  // 각 문장별 탭 평균
-  sentence_summary?: string; // 각 문장별 탭 빈도 요약
-  total_sentence_taps?: number;
+  timestamp: string;                 // "YYYY-MM-DD HH:mm:ss" (완료 일시)
+  nickname: string;                  // 학습자 닉네임 (미입력 시 '익명')
+  scenario_name: string;             // 선택하여 플레이한 시나리오 제목 및 카테고리
+  play_count: number;                // 누적 플레이 횟수
+  appropriateness_score: number | string; // 해당 시나리오에서 획득한 대화 적합도 퍼센트/점수 (예: "92%" 또는 92)
   status: 'synced' | 'pending' | 'failed';
   errorMessage?: string;
-  mode?: string;
 }

@@ -125,7 +125,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
                     : '구글 시트 연동 대기 중'}
                 </span>
                 <p className="text-[10px] text-stone-400 truncate">
-                  {result.sheetSyncMessage || '열 형식: timestamp, name, play_count, correct_count, wrong_count'}
+                  {result.sheetSyncMessage || '5개 열: timestamp, nickname, scenario_name, play_count, appropriateness_score'}
                 </p>
               </div>
             </div>
