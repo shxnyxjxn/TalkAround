@@ -11,6 +11,7 @@ interface SpeechInputPanelProps {
   playbackSpeed: number;
   onSubmitSpeech: (text: string) => void;
   onSwitchToChoiceMode: () => void;
+  onShadowingAttempt?: () => void;
 }
 
 export const SpeechInputPanel: React.FC<SpeechInputPanelProps> = ({
@@ -20,6 +21,7 @@ export const SpeechInputPanel: React.FC<SpeechInputPanelProps> = ({
   playbackSpeed,
   onSubmitSpeech,
   onSwitchToChoiceMode,
+  onShadowingAttempt,
 }) => {
   const [spokenText, setSpokenText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -58,6 +60,7 @@ export const SpeechInputPanel: React.FC<SpeechInputPanelProps> = ({
         },
         onResult: (finalText) => {
           if (finalText) {
+            onShadowingAttempt?.();
             setSpokenText(prev => {
               if (!prev.trim()) return finalText;
               if (prev.endsWith(finalText)) return prev;
@@ -116,6 +119,7 @@ export const SpeechInputPanel: React.FC<SpeechInputPanelProps> = ({
       speechRecognitionService.stop();
       setIsRecording(false);
     }
+    onShadowingAttempt?.();
     onSubmitSpeech(spokenText.trim());
   };
 

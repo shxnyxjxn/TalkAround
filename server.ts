@@ -2,6 +2,8 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createAdminClient } from './lib/supabase/server';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -24,9 +26,29 @@ function getGemini(): GoogleGenAI | null {
   return geminiClient;
 }
 
+// Lazy-initialized Supabase Admin client (server-side only)
+let supabaseAdminClient: SupabaseClient | null = null;
+export function getSupabaseAdmin(): SupabaseClient | null {
+  if (!supabaseAdminClient) {
+    try {
+      supabaseAdminClient = createAdminClient();
+    } catch {
+      return null;
+    }
+  }
+  return supabaseAdminClient;
+}
+
 // Health check endpoint & Public Config
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', hasGeminiKey: !!process.env.GEMINI_API_KEY });
+  res.json({
+    status: 'ok',
+    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    hasSupabase: !!(
+      (process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    ),
+  });
 });
 
 app.get('/api/config', (req, res) => {
@@ -194,6 +216,211 @@ app.post('/api/sync-sheet', async (req, res) => {
       success: false,
       message: error?.message || 'Failed to sync with Google Sheet',
     });
+  }
+});
+
+// Helper: detect missing Supabase table error
+function isMissingTableError(error: any): boolean {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const msg = String(error.message || '').toLowerCase();
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    msg.includes('does not exist') ||
+    msg.includes('could not find the table')
+  );
+}
+
+// Helper: optionally resolve authenticated Supabase user id from Bearer token
+async function resolveUserIdFromRequest(req: express.Request, admin: SupabaseClient): Promise<string | null> {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      try {
+        const { data } = await admin.auth.getUser(token);
+        if (data?.user?.id) return data.user.id;
+      } catch {
+        // ignore invalid token
+      }
+    }
+  }
+  return null;
+}
+
+// GET /api/activity - Fetch activity summary logs from Supabase
+app.get('/api/activity', async (req, res) => {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return res.status(503).json({
+      success: false,
+      needsConfig: true,
+      logs: [],
+      message: 'Supabase 서버 환경변수가 설정되지 않았습니다.',
+    });
+  }
+
+  try {
+    const authedUserId = await resolveUserIdFromRequest(req, admin);
+    const filterUserId = typeof req.query.userId === 'string' && req.query.userId.trim()
+      ? req.query.userId.trim()
+      : authedUserId;
+
+    let query = admin
+      .from('user_activity_logs')
+      .select('*')
+      .order('recorded_at', { ascending: false })
+      .limit(100);
+
+    if (filterUserId) {
+      query = query.eq('user_id', filterUserId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return res.json({
+          success: false,
+          needsTableSetup: true,
+          logs: [],
+          message: 'Supabase에 user_activity_logs 테이블이 아직 생성되지 않았습니다.',
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        logs: [],
+        message: error.message || '활동 기록 조회에 실패했습니다.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      logs: data || [],
+    });
+  } catch (err: any) {
+    console.error('GET /api/activity error:', err);
+    return res.status(500).json({
+      success: false,
+      logs: [],
+      message: err?.message || '활동 기록 조회 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+// POST /api/activity - Record a completed learning session (listening & shadowing counts + timestamp)
+app.post('/api/activity', async (req, res) => {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return res.status(503).json({
+      success: false,
+      needsConfig: true,
+      message: 'Supabase 서버 환경변수가 설정되지 않았습니다.',
+    });
+  }
+
+  try {
+    const authedUserId = await resolveUserIdFromRequest(req, admin);
+    const {
+      user_id,
+      nickname,
+      scenario_id,
+      scenario_name,
+      listening_count,
+      shadowing_count,
+      appropriateness_score,
+      cefr_level,
+      recorded_at,
+    } = req.body || {};
+
+    if (!scenario_name || typeof scenario_name !== 'string') {
+      return res.status(400).json({ success: false, message: 'scenario_name is required.' });
+    }
+
+    const safeListening = Math.max(0, Math.round(Number(listening_count) || 0));
+    const safeShadowing = Math.max(0, Math.round(Number(shadowing_count) || 0));
+    const safeScore = Math.max(0, Math.min(100, Math.round(Number(appropriateness_score) || 0)));
+    const safeTimestamp = recorded_at || new Date().toISOString();
+
+    const insertRow = {
+      user_id: authedUserId || (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null),
+      nickname: typeof nickname === 'string' && nickname.trim() ? nickname.trim() : '익명',
+      scenario_id: typeof scenario_id === 'string' ? scenario_id : null,
+      scenario_name: scenario_name.trim(),
+      listening_count: safeListening,
+      shadowing_count: safeShadowing,
+      appropriateness_score: safeScore,
+      cefr_level: typeof cefr_level === 'string' ? cefr_level : null,
+      recorded_at: safeTimestamp,
+    };
+
+    const { data, error } = await admin
+      .from('user_activity_logs')
+      .insert([insertRow])
+      .select()
+      .single();
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return res.json({
+          success: false,
+          needsTableSetup: true,
+          message: 'Supabase에 user_activity_logs 테이블 생성이 필요합니다.',
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Supabase 활동 기록 저장에 실패했습니다.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      record: data,
+      message: 'Supabase에 학습 활동 기록이 저장되었습니다.',
+    });
+  } catch (err: any) {
+    console.error('POST /api/activity error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err?.message || '활동 기록 저장 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+// PATCH /api/activity/:id - Increment listening/shadowing counts from ResultScreen practice
+app.patch('/api/activity/:id', async (req, res) => {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return res.status(503).json({ success: false, message: 'Supabase unavailable' });
+  }
+
+  try {
+    const { id } = req.params;
+    const { listening_count, shadowing_count } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, message: 'id is required' });
+
+    const { data, error } = await admin
+      .from('user_activity_logs')
+      .update({
+        listening_count: Math.max(0, Math.round(Number(listening_count) || 0)),
+        shadowing_count: Math.max(0, Math.round(Number(shadowing_count) || 0)),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return res.json({ success: false, needsTableSetup: true });
+      }
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    return res.json({ success: true, record: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err?.message || 'Update failed' });
   }
 });
 

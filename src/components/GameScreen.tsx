@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, Heart, ArrowRight, Sparkles, AlertCircle, CheckCircle2, RotateCcw, XCircle, Sliders, ChevronDown, ChevronUp, Mic, MessageSquare } from 'lucide-react';
+import { Volume2, Heart, ArrowRight, Sparkles, AlertCircle, CheckCircle2, RotateCcw, XCircle, Sliders, ChevronDown, ChevronUp, Mic, MicOff, MessageSquare, Headphones } from 'lucide-react';
 import { Episode, Turn, Choice, TurnRecord, UserSettings, SessionResult, CefrLevel, SpeechEvaluation } from '../types';
 import { NpcAvatar } from './NpcAvatar';
 import { AudioButton } from './AudioButton';
 import { speechService } from '../utils/speech';
+import { speechRecognitionService } from '../utils/speechRecognition';
 import { SpeechInputPanel } from './SpeechInputPanel';
 import { SpeechFeedbackModal } from './SpeechFeedbackModal';
 import { evaluateUserSpeech } from '../utils/speechEvaluator';
@@ -41,6 +42,77 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [showSpeechFeedbackModal, setShowSpeechFeedbackModal] = useState(false);
   const [shuffledChoices, setShuffledChoices] = useState<Choice[]>([]);
   const lastBestIndexRef = useRef<number>(-1);
+
+  // Activity tracking: Listening & Shadowing Counts
+  const [listeningCount, setListeningCount] = useState(0);
+  const [shadowingCount, setShadowingCount] = useState(0);
+  const listeningCountRef = useRef(0);
+  const shadowingCountRef = useRef(0);
+  const [shadowingTarget, setShadowingTarget] = useState<string | null>(null);
+  const [shadowingToast, setShadowingToast] = useState<string | null>(null);
+
+  const incrementShadowing = (message?: string) => {
+    shadowingCountRef.current += 1;
+    setShadowingCount(shadowingCountRef.current);
+    if (message) {
+      setShadowingToast(message);
+      setTimeout(() => setShadowingToast(null), 2600);
+    }
+  };
+
+  // Subscribe to all TTS playback events to measure listening_count accurately
+  useEffect(() => {
+    const unsubscribe = speechService.subscribeSpeak(() => {
+      listeningCountRef.current += 1;
+      setListeningCount(listeningCountRef.current);
+    });
+    return () => {
+      unsubscribe();
+      speechRecognitionService.stop();
+    };
+  }, []);
+
+  const handleToggleShadowing = (targetSentence: string) => {
+    if (shadowingTarget) {
+      speechRecognitionService.stop();
+      setShadowingTarget(null);
+      return;
+    }
+
+    if (!speechRecognitionService.isSupported()) {
+      incrementShadowing('🎙️ 쉐도잉 학습 +1회 측정 완료!');
+      return;
+    }
+
+    setShadowingTarget(targetSentence);
+    let recordedFinal = false;
+
+    const started = speechRecognitionService.start({
+      onResult: (finalText) => {
+        recordedFinal = true;
+        setShadowingTarget(null);
+        if (finalText.trim()) {
+          incrementShadowing(`🎙️ "${finalText.slice(0, 32)}${finalText.length > 32 ? '...' : ''}" 쉐도잉 +1회!`);
+        } else {
+          incrementShadowing('🎙️ 쉐도잉 연습 +1회 기록됨!');
+        }
+      },
+      onError: () => {
+        setShadowingTarget(null);
+        if (!recordedFinal) {
+          incrementShadowing('🎙️ 쉐도잉 연습 +1회 기록됨!');
+        }
+      },
+      onEnd: () => {
+        setShadowingTarget(null);
+      },
+    });
+
+    if (!started) {
+      setShadowingTarget(null);
+      incrementShadowing('🎙️ 쉐도잉 연습 +1회 기록됨!');
+    }
+  };
 
   const currentTurn: Turn = episode.turns[currentTurnIndex];
   const isLastTurn = currentTurnIndex === episode.turns.length - 1;
@@ -131,6 +203,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       achievedCefr,
       affinityRank,
       turnRecords: finalRecords,
+      listeningCount: listeningCountRef.current,
+      shadowingCount: shadowingCountRef.current,
     };
 
     onFinishGame(sessionResult);
@@ -322,21 +396,40 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
       {/* Main Dialogue Stage: NPC Card & Speech Balloon */}
       <div className="my-auto py-3 space-y-3">
-        {/* Context Badge */}
-        <div className="flex items-center justify-between text-xs px-1 text-stone-400">
+        {/* Context Badge & Live Listening/Shadowing Activity Counter */}
+        <div className="flex items-center justify-between gap-2 text-xs px-1 text-stone-400">
           <span className="truncate text-[11px] text-amber-400 font-medium">
             📍 {episode.locationTag}
           </span>
-          <span className="text-[11px] text-stone-500 font-medium">
-            English Immersion Mode
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0 font-mono text-[10px]">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-stone-900 border border-stone-800 text-stone-300"
+              title="이번 세션 누적 듣기 횟수"
+            >
+              <Headphones className="w-3 h-3 text-amber-400" />
+              듣기 {listeningCount}
+            </span>
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-stone-900 border border-stone-800 text-stone-300"
+              title="이번 세션 누적 쉐도잉 횟수"
+            >
+              <Mic className="w-3 h-3 text-emerald-400" />
+              쉐도잉 {shadowingCount}
+            </span>
+          </div>
         </div>
+
+        {shadowingToast && (
+          <div className="px-3 py-1.5 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold text-center animate-in fade-in duration-150">
+            {shadowingToast}
+          </div>
+        )}
 
         {/* NPC Profile & Dialogue Balloon */}
         <div className="relative rounded-3xl bg-stone-900/90 border border-stone-800 p-4 sm:p-5 shadow-xl space-y-3">
           {/* NPC Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
               <NpcAvatar
                 seed={episode.npc.avatarSeed}
                 name={episode.npc.name}
@@ -344,28 +437,50 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 accentColor={episode.npc.accentColor}
                 size="md"
               />
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-bold text-white">
+                  <h3 className="text-sm sm:text-base font-bold text-white truncate">
                     {episode.npc.name}
                   </h3>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
                     NPC
                   </span>
                 </div>
-                <p className="text-xs text-stone-400">{episode.npc.role}</p>
+                <p className="text-xs text-stone-400 truncate">{episode.npc.role}</p>
               </div>
             </div>
 
-            {/* Audio Replay Button (Left top beside dialogue / PRD requirement) */}
-            <div className="flex items-center gap-1">
+            {/* Audio Replay & Shadowing Practice Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <AudioButton
                 text={currentTurn.npcDialogue}
                 speed={localSpeed}
-                label="다시 듣기"
+                label="듣기"
                 variant="pill"
                 size="sm"
               />
+              <button
+                type="button"
+                onClick={() => handleToggleShadowing(currentTurn.npcDialogue)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                  shadowingTarget === currentTurn.npcDialogue
+                    ? 'bg-rose-600 border-rose-400 text-white animate-pulse'
+                    : 'bg-stone-800/80 hover:bg-stone-700 border-stone-700 text-emerald-300'
+                }`}
+                title="대사를 따라 말하며 쉐도잉 횟수 측정"
+              >
+                {shadowingTarget === currentTurn.npcDialogue ? (
+                  <>
+                    <MicOff className="w-3.5 h-3.5" />
+                    <span>말하는 중</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-3.5 h-3.5" />
+                    <span>쉐도잉</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -432,6 +547,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               playbackSpeed={localSpeed}
               onSubmitSpeech={handleSubmitSpeech}
               onSwitchToChoiceMode={() => setInputMode('choice')}
+              onShadowingAttempt={() => incrementShadowing('🎙️ 직접 말하기 쉐도잉 +1회 측정!')}
             />
           ) : (
             <div className="space-y-2">
@@ -602,17 +718,31 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
             {/* 5. Native Golden Alternative (현지인 추천 표현) */}
             <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
                   ⭐ 현지 뉴요커 추천 원어민 표현
                 </span>
-                <AudioButton
-                  text={selectedChoice.nativeAlternative}
-                  speed={localSpeed}
-                  size="sm"
-                  variant="pill"
-                  label="원어민 발음"
-                />
+                <div className="flex items-center gap-1.5">
+                  <AudioButton
+                    text={selectedChoice.nativeAlternative}
+                    speed={localSpeed}
+                    size="sm"
+                    variant="pill"
+                    label="듣기"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleToggleShadowing(selectedChoice.nativeAlternative)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                      shadowingTarget === selectedChoice.nativeAlternative
+                        ? 'bg-rose-600 border-rose-400 text-white animate-pulse'
+                        : 'bg-stone-800/80 hover:bg-stone-700 border-stone-700 text-emerald-300'
+                    }`}
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                    <span>{shadowingTarget === selectedChoice.nativeAlternative ? '말하는 중' : '쉐도잉'}</span>
+                  </button>
+                </div>
               </div>
               <p className="text-xs sm:text-sm font-bold text-white">
                 &ldquo;{selectedChoice.nativeAlternative}&rdquo;

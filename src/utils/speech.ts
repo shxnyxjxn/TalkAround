@@ -2,11 +2,14 @@
  * Speech synthesis utility for native English listening & pronunciation practice
  */
 
+type SpeakListener = (text: string) => void;
+
 class SpeechService {
   private synth: SpeechSynthesis | null = null;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private voices: SpeechSynthesisVoice[] = [];
   private selectedVoice: SpeechSynthesisVoice | null = null;
+  private speakListeners: Set<SpeakListener> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -16,6 +19,23 @@ class SpeechService {
         this.synth.onvoiceschanged = () => this.initVoices();
       }
     }
+  }
+
+  public subscribeSpeak(listener: SpeakListener): () => void {
+    this.speakListeners.add(listener);
+    return () => {
+      this.speakListeners.delete(listener);
+    };
+  }
+
+  private notifySpeak(text: string) {
+    this.speakListeners.forEach(fn => {
+      try {
+        fn(text);
+      } catch {
+        // ignore listener error
+      }
+    });
   }
 
   private initVoices() {
@@ -77,6 +97,7 @@ class SpeechService {
 
       this.currentUtterance = utterance;
       this.synth.speak(utterance);
+      this.notifySpeak(text);
       return true;
     } catch (e) {
       console.warn('Speech synthesis error:', e);
@@ -98,3 +119,4 @@ class SpeechService {
 }
 
 export const speechService = new SpeechService();
+

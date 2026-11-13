@@ -9,9 +9,14 @@ import { EPISODES } from './data/episodes';
 import { StartScreen } from './components/StartScreen';
 import { GameScreen } from './components/GameScreen';
 import { ResultScreen } from './components/ResultScreen';
+import { ActivitySummaryPage } from './components/ActivitySummaryPage';
 import { SettingsModal } from './components/SettingsModal';
 import { LearnerHeader } from './components/LearnerHeader';
 import { GoogleSheetSyncModal } from './components/GoogleSheetSyncModal';
+import { AuthModal } from './components/AuthModal';
+import { createClient } from '@/lib/supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { saveActivityToSupabase, updateActivityCounts } from './utils/activityTracker';
 import {
   getSavedWebAppUrl,
   saveWebAppUrl,
@@ -38,13 +43,15 @@ const DEFAULT_LEARNER_PROFILE: LearnerProfile = {
 
 export default function App() {
   // Navigation Screens
-  const [currentScreen, setCurrentScreen] = useState<'start' | 'game' | 'result'>('start');
+  const [currentScreen, setCurrentScreen] = useState<'start' | 'game' | 'result' | 'summary'>('start');
   const [activeEpisode, setActiveEpisode] = useState<Episode>(EPISODES[0]);
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
 
   // Modals & Frame Settings
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [isPhoneFrame, setIsPhoneFrame] = useState(true);
 
   // Learner Profile & Google Sheet sync records
@@ -83,6 +90,28 @@ export default function App() {
       console.warn('Failed to save settings:', e);
     }
   }, [settings]);
+
+  // Sync Supabase auth session state
+  useEffect(() => {
+    let subscription: { unsubscribe: () => void } | null = null;
+    try {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => {
+        setAuthUser(data.user ?? null);
+      }).catch(() => {});
+
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setAuthUser(session?.user ?? null);
+      });
+      subscription = listener.subscription;
+    } catch {
+      // Supabase env vars unavailable
+    }
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   // Update Learner Nickname
   const handleUpdateNickname = (newNickname: string) => {
@@ -124,10 +153,15 @@ export default function App() {
     const scenarioName = `[${categoryTag}] ${activeEpisode.titleKo} (${activeEpisode.npc.name})`;
     const appropriatenessScore = `${result.finalAffinity}%`;
 
+    const sessionListening = result.listeningCount || 0;
+    const sessionShadowing = result.shadowingCount || 0;
+
     const updatedProfile: LearnerProfile = {
       ...learnerProfile,
       nickname: learnerProfile.nickname || learnerProfile.name || '익명',
       play_count: nextPlayCount,
+      total_listening_count: (learnerProfile.total_listening_count || 0) + sessionListening,
+      total_shadowing_count: (learnerProfile.total_shadowing_count || 0) + sessionShadowing,
       last_appropriateness_score: result.finalAffinity,
       last_scenario_name: scenarioName,
       lastPlayed: new Date().toISOString(),
@@ -185,15 +219,64 @@ export default function App() {
     saveRecordLocally(sheetRecord);
     setSheetRecords(getSavedRecords());
 
+    // Save listening & shadowing activity record to Supabase with ISO timestamp
+    const recordedAt = result.completedAt || new Date().toISOString();
+    const activityRes = await saveActivityToSupabase({
+      nickname: studentName,
+      scenario_id: activeEpisode.id,
+      scenario_name: scenarioName,
+      listening_count: sessionListening,
+      shadowing_count: sessionShadowing,
+      appropriateness_score: result.finalAffinity,
+      cefr_level: result.achievedCefr,
+      recorded_at: recordedAt,
+    });
+
     // Update session result with sync status
     const finalSessionResult: SessionResult = {
       ...result,
+      supabaseLogId: activityRes.log.id,
+      supabaseSyncStatus: activityRes.status,
+      supabaseSyncMessage: activityRes.message,
       sheetSyncStatus: syncStatus,
       sheetSyncMessage: syncMessage,
     };
 
     setSessionResult(finalSessionResult);
     setCurrentScreen('result');
+  };
+
+  const handleExtraActivityUpdate = (newListening: number, newShadowing: number) => {
+    if (!sessionResult) return;
+    const deltaListening = Math.max(0, newListening - (sessionResult.listeningCount || 0));
+    const deltaShadowing = Math.max(0, newShadowing - (sessionResult.shadowingCount || 0));
+    if (deltaListening === 0 && deltaShadowing === 0) return;
+
+    setSessionResult(prev =>
+      prev
+        ? {
+            ...prev,
+            listeningCount: newListening,
+            shadowingCount: newShadowing,
+          }
+        : prev
+    );
+
+    setLearnerProfile(prev => {
+      const updated: LearnerProfile = {
+        ...prev,
+        total_listening_count: (prev.total_listening_count || 0) + deltaListening,
+        total_shadowing_count: (prev.total_shadowing_count || 0) + deltaShadowing,
+      };
+      try {
+        localStorage.setItem('talk_around_learner_profile', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    updateActivityCounts(sessionResult.supabaseLogId, newListening, newShadowing);
   };
 
   const handleRetrySheetSync = async () => {
@@ -302,8 +385,12 @@ export default function App() {
         <LearnerHeader
           profile={learnerProfile}
           hasSheetUrl={!!getSavedWebAppUrl()}
+          authUser={authUser}
+          isSummaryActive={currentScreen === 'summary'}
           onUpdateNickname={handleUpdateNickname}
           onOpenSheetModal={() => setIsSheetModalOpen(true)}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          onOpenSummary={() => setCurrentScreen('summary')}
         />
 
         {/* View Router */}
@@ -334,6 +421,16 @@ export default function App() {
               onBackToHome={handleBackToHome}
               onOpenSheetModal={() => setIsSheetModalOpen(true)}
               onRetrySheetSync={handleRetrySheetSync}
+              onOpenSummary={() => setCurrentScreen('summary')}
+              onExtraActivityUpdate={handleExtraActivityUpdate}
+            />
+          )}
+
+          {currentScreen === 'summary' && (
+            <ActivitySummaryPage
+              profile={learnerProfile}
+              authUser={authUser}
+              onBackToHome={handleBackToHome}
             />
           )}
         </div>
@@ -362,6 +459,22 @@ export default function App() {
         records={sheetRecords}
         onRefreshRecords={() => setSheetRecords(getSavedRecords())}
         onSaveUrl={(url) => saveWebAppUrl(url)}
+      />
+
+      {/* In-Page Login Modal (never navigates away from main page) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        user={authUser}
+        onAuthSuccess={(user) => {
+          setAuthUser(user);
+          if (user) {
+            const metaNick = user.user_metadata?.nickname;
+            if (metaNick && (learnerProfile.nickname === '익명' || !learnerProfile.nickname)) {
+              handleUpdateNickname(metaNick);
+            }
+          }
+        }}
       />
     </main>
   );

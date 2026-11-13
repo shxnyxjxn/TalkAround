@@ -104,8 +104,13 @@ export interface SessionResult {
     emoji: string;
   };
   turnRecords: TurnRecord[];
+  listeningCount?: number;
+  shadowingCount?: number;
+  supabaseLogId?: string;
   sheetSyncStatus?: 'synced' | 'failed' | 'not_configured';
   sheetSyncMessage?: string;
+  supabaseSyncStatus?: 'synced' | 'needs_table' | 'failed';
+  supabaseSyncMessage?: string;
 }
 
 export interface UserSettings {
@@ -124,6 +129,8 @@ export interface LearnerProfile {
   name?: string;              // 하위 호환성용
   avatar: string;             // 아바타 이모지 (예: 🗽, 💼, ☕, 🌟)
   play_count: number;         // 누적 시뮬레이션 플레이 횟수
+  total_listening_count?: number; // 누적 듣기 학습 횟수
+  total_shadowing_count?: number; // 누적 쉐도잉 횟수
   last_appropriateness_score?: number; // 최근 획득 대화 적합도 점수 (%)
   last_scenario_name?: string; // 최근 플레이 시나리오
   correct_count?: number;     // 참고용 카운트
@@ -144,3 +151,19 @@ export interface GoogleSheetRecord {
   status: 'synced' | 'pending' | 'failed';
   errorMessage?: string;
 }
+
+export interface UserActivityLog {
+  id: string;
+  user_id?: string | null;
+  nickname: string;
+  scenario_id?: string;
+  scenario_name: string;
+  listening_count: number;
+  shadowing_count: number;
+  appropriateness_score: number;
+  cefr_level?: string;
+  recorded_at: string; // ISO timestamp
+  created_at?: string;
+  source?: 'supabase' | 'local';
+}
+

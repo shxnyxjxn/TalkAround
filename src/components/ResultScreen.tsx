@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Award,
   RotateCcw,
@@ -16,10 +16,17 @@ import {
   MessageSquare,
   ThumbsUp,
   HelpCircle,
+  Headphones,
+  Mic,
+  Database,
+  BarChart3,
 } from 'lucide-react';
 import { SessionResult, Episode } from '../types';
 import { EPISODES } from '../data/episodes';
 import { AudioButton } from './AudioButton';
+import { speechService } from '../utils/speech';
+import { speechRecognitionService } from '../utils/speechRecognition';
+import { formatActivityTimestamp } from '../utils/activityTracker';
 
 interface ResultScreenProps {
   result: SessionResult;
@@ -28,6 +35,8 @@ interface ResultScreenProps {
   onBackToHome: () => void;
   onOpenSheetModal?: () => void;
   onRetrySheetSync?: () => void;
+  onOpenSummary?: () => void;
+  onExtraActivityUpdate?: (listeningCount: number, shadowingCount: number) => void;
 }
 
 export const ResultScreen: React.FC<ResultScreenProps> = ({
@@ -37,8 +46,85 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   onBackToHome,
   onOpenSheetModal,
   onRetrySheetSync,
+  onOpenSummary,
+  onExtraActivityUpdate,
 }) => {
   const [isRetrying, setIsRetrying] = useState(false);
+  const [listeningCount, setListeningCount] = useState<number>(result.listeningCount || 0);
+  const [shadowingCount, setShadowingCount] = useState<number>(result.shadowingCount || 0);
+  const [activeShadowIndex, setActiveShadowIndex] = useState<number | null>(null);
+  const countsRef = useRef({
+    listening: result.listeningCount || 0,
+    shadowing: result.shadowingCount || 0,
+  });
+
+  useEffect(() => {
+    countsRef.current = {
+      listening: result.listeningCount || 0,
+      shadowing: result.shadowingCount || 0,
+    };
+    setListeningCount(result.listeningCount || 0);
+    setShadowingCount(result.shadowingCount || 0);
+  }, [result.completedAt, result.listeningCount, result.shadowingCount]);
+
+  // Count additional review listening replays on ResultScreen
+  useEffect(() => {
+    const unsub = speechService.subscribeSpeak(() => {
+      countsRef.current.listening += 1;
+      setListeningCount(countsRef.current.listening);
+      onExtraActivityUpdate?.(countsRef.current.listening, countsRef.current.shadowing);
+    });
+    return () => {
+      unsub();
+      speechRecognitionService.stop();
+    };
+  }, [onExtraActivityUpdate]);
+
+  const handleReviewShadowing = (index: number) => {
+    if (activeShadowIndex === index) {
+      speechRecognitionService.stop();
+      setActiveShadowIndex(null);
+      return;
+    }
+
+    const recordPractice = () => {
+      countsRef.current.shadowing += 1;
+      setShadowingCount(countsRef.current.shadowing);
+      onExtraActivityUpdate?.(countsRef.current.listening, countsRef.current.shadowing);
+    };
+
+    if (!speechRecognitionService.isSupported()) {
+      recordPractice();
+      return;
+    }
+
+    setActiveShadowIndex(index);
+    let recorded = false;
+    const started = speechRecognitionService.start({
+      onResult: () => {
+        if (!recorded) {
+          recorded = true;
+          recordPractice();
+        }
+        setActiveShadowIndex(null);
+      },
+      onError: () => {
+        if (!recorded) {
+          recorded = true;
+          recordPractice();
+        }
+        setActiveShadowIndex(null);
+      },
+      onEnd: () => {
+        setActiveShadowIndex(null);
+      },
+    });
+
+    if (!started) {
+      setActiveShadowIndex(null);
+      recordPractice();
+    }
+  };
 
   // Find next episode
   const currentIndex = EPISODES.findIndex(e => e.id === result.episodeId);
@@ -126,6 +212,24 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Listening & Shadowing Activity Metrics Strip */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-stone-950/80 border border-amber-500/25 text-xs">
+              <span className="text-stone-300 flex items-center gap-1.5 font-medium">
+                <Headphones className="w-3.5 h-3.5 text-amber-400" />
+                듣기 학습 횟수
+              </span>
+              <span className="font-mono font-black text-amber-300">{listeningCount}회</span>
+            </div>
+            <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-stone-950/80 border border-emerald-500/25 text-xs">
+              <span className="text-stone-300 flex items-center gap-1.5 font-medium">
+                <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                쉐도잉 횟수
+              </span>
+              <span className="font-mono font-black text-emerald-300">{shadowingCount}회</span>
+            </div>
+          </div>
         </div>
 
         {/* Google Sheet Automatic Sync Confirmation Card */}
@@ -184,6 +288,46 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
                 </button>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Supabase Activity Log Confirmation + Summary Page Button */}
+        <div
+          className={`p-3 rounded-2xl border transition-all text-xs ${
+            result.supabaseSyncStatus === 'synced'
+              ? 'bg-emerald-950/35 border-emerald-500/35 text-emerald-200'
+              : 'bg-amber-500/10 border-amber-500/35 text-amber-200'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Database
+                className={`w-4 h-4 shrink-0 ${
+                  result.supabaseSyncStatus === 'synced' ? 'text-emerald-400' : 'text-amber-400'
+                }`}
+              />
+              <div className="min-w-0">
+                <span className="font-bold text-[11px] sm:text-xs block truncate">
+                  {result.supabaseSyncStatus === 'synced'
+                    ? 'Supabase 활동 기록 저장 완료'
+                    : '학습 활동 기록 저장됨 (요약 페이지 확인)'}
+                </span>
+                <p className="text-[10px] text-stone-400 truncate font-mono">
+                  {formatActivityTimestamp(result.completedAt)} · 듣기 {listeningCount} · 쉐도잉 {shadowingCount}
+                </p>
+              </div>
+            </div>
+
+            {onOpenSummary && (
+              <button
+                type="button"
+                onClick={onOpenSummary}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-[10px] sm:text-[11px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>활동 요약 보기</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -254,16 +398,31 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
                     </span>
                   </div>
 
-                  <AudioButton
-                    text={
-                      record.speechEvaluation?.nativePolish ||
-                      record.chosenChoice.nativeAlternative
-                    }
-                    speed={1.0}
-                    label="추천 발음"
-                    variant="pill"
-                    size="sm"
-                  />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <AudioButton
+                      text={
+                        record.speechEvaluation?.nativePolish ||
+                        record.chosenChoice.nativeAlternative
+                      }
+                      speed={1.0}
+                      label="듣기"
+                      variant="pill"
+                      size="sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReviewShadowing(index)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                        activeShadowIndex === index
+                          ? 'bg-rose-600 border-rose-400 text-white animate-pulse'
+                          : 'bg-stone-800/80 hover:bg-stone-700 border-stone-700 text-emerald-300'
+                      }`}
+                      title="원어민 표현 따라 말하기 (쉐도잉 +1)"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>{activeShadowIndex === index ? '말하는 중' : '쉐도잉'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* NPC Dialogue Reminder */}
